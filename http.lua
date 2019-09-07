@@ -175,4 +175,7 @@ local http={}
 function http.add(url,func)
   pages[url]={func=func}
 end
+function http.remove(url)
+  pages[url] = nil
+end
 return http
