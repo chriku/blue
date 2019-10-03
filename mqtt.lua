@@ -151,7 +151,12 @@ function mqtt.connect(host,port,username,password)
       error("Invalid Error")
     end
   end
-  function mqtt_ctx.publish() error("TODO") end
+  function mqtt_ctx.publish(topic,qos,data)
+    local content={}
+    table.insert(content,encode_mqtt_utf8(topic))
+    table.insert(content,data)
+    send_packet("PUBLISH",content)
+  end
   handlers[packages["PUBLISH"]]=function(flags,data)
     local topic,pos=decode_mqtt_utf8(data)
     data=data:sub(pos)
