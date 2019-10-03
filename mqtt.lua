@@ -155,10 +155,29 @@ function mqtt.connect(host,port,username,password)
     local content={}
     table.insert(content,encode_mqtt_utf8(topic))
     table.insert(content,data)
-    send_packet("PUBLISH",content)
+    local flags=0
+    flags=flags+((qos%4)*2)
+    if qos==0 or qos==1 then
+      send_packet("PUBLISH",content,flags)
+    else
+      error("TODO")
+    end
+    if qos==1 then error("TODO") end
   end
-  handlers[packages["PUBLISH"]]=function(flags,data)
+  handlers[packages["PUBLISH"]]=function(flags,data,retain)
+    assert(not retain,"TODO")
+    local qos=(math.floor(flags/2)%4)
+    print("DUP",math.floor(flags/8)%2,flags)
     local topic,pos=decode_mqtt_utf8(data)
+    local id
+    if qos==1 then
+      id=decode_mqtt_int(data,pos)
+      local content={}
+      table.insert(content,encode_mqtt_int(id))
+    elseif qos==2 then error("TODO")
+    elseif qos~=0 then
+      error("TODO")
+    end
     data=data:sub(pos)
     for k,v in pairs(publish_handlers) do
       k=k:gsub("[^a-z0-9/%+%#]","%%%1")
@@ -205,6 +224,14 @@ function mqtt.connect(host,port,username,password)
       error("TODO")
     end
   end
+  function mqtt_ctx.unsubscribe() error("TODO") end
+  handlers[packages["UNSUBSCRIBE"]]=function() error("INV") end
+  handlers[packages["UNSUBACK"]]=function() error("TODO") end
+  function mqtt_ctx.ping() error("TODO") end
+  handlers[packages["PINGREQ"]]=function() error("INV") end
+  handlers[packages["PINGRESP"]]=function() error("TODO") end
+  handlers[packages["INV"]]=function() error("TODO") end
+  function mqtt_ctx.close() error("TODO") end
   scheduler.addthread(function()
     local buf=""
     while true do
