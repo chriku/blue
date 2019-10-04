@@ -110,23 +110,9 @@ function mqtt.connect(host,port,username,password,settings)--TODO: timeout if er
     local flags=math.floor(b1%16)
     local x={}
     if not type then error("Invalid Type received") end
-    print("Received",type.name)
+    --print("Received",type.name)
     if not handlers[type] then error("Missing handle function") end
     handlers[type](flags,data:sub(pos))
-  end
-  do
-    local content={}
-    table.insert(content,encode_mqtt_utf8("MQTT"))
-    table.insert(content,string.char(4))
-    local flags=2
-    if password then flags=flags+64 end
-    if username then flags=flags+128 end
-    table.insert(content,string.char(flags))
-    table.insert(content,encode_mqtt_int(keep_alive or 0))
-    table.insert(content,encode_mqtt_utf8(""))--Session ID
-    if username then table.insert(content,encode_mqtt_utf8(username)) end
-    if password then table.insert(content,encode_mqtt_utf8(password)) end
-    send_packet("CONNECT",content)
   end
   local packet_id_client={}--started by me
   local packet_id_server={}--started by server
@@ -290,16 +276,19 @@ function mqtt.connect(host,port,username,password,settings)--TODO: timeout if er
   handlers[packages["PINGREQ"]]=function() error("INV") end
   handlers[packages["PINGRESP"]]=function() last_resp={} end
   handlers[packages["DISCONNECT"]]=function() error("INV") end
-  function mqtt_ctx.close() error("TODO: Close") end
+  function mqtt_ctx.close()
+    send_packet("DISCONNECT",{})
+    socket:close()
+  end
   local open=true
   scheduler.addthread(function()
     while open and keep_alive>0 do
-      scheduler.sleep(keep_alive)--TODO: Check for other Packets, Check for close, ...
+      scheduler.sleep(keep_alive)
       if not open then return end
       local this_resp=last_resp
       local sent=send_packet("PINGREQ",{})
       if not sent then return end
-      scheduler.sleep(2)--TODO
+      scheduler.sleep(keep_alive*0.5)
       if this_resp==last_resp then
         mqtt_ctx.close()
       end
@@ -324,6 +313,20 @@ function mqtt.connect(host,port,username,password,settings)--TODO: timeout if er
       end
     end
   end)
+  do
+    local content={}
+    table.insert(content,encode_mqtt_utf8("MQTT"))
+    table.insert(content,string.char(4))
+    local flags=2
+    if password then flags=flags+64 end
+    if username then flags=flags+128 end
+    table.insert(content,string.char(flags))
+    table.insert(content,encode_mqtt_int(keep_alive or 0))
+    table.insert(content,encode_mqtt_utf8(""))--Session ID
+    if username then table.insert(content,encode_mqtt_utf8(username)) end
+    if password then table.insert(content,encode_mqtt_utf8(password)) end
+    send_packet("CONNECT",content)
+  end
   resume=scheduler.getresume()
   scheduler.yield()
   return mqtt_ctx

@@ -67,6 +67,17 @@
 
 if package.loaded.copas then
   local lsocket=require"socket"
+  do
+    local sel=lsocket.select
+    function lsocket.select(rd,wr,to)
+      for _,fd in ipairs(rd) do
+        if not (fd:getfd()>=0) then
+          return {fd},{}
+        end
+      end
+      return sel(rd,wr,to)
+    end
+  end
   local copas=require"copas"
   copas.autoclose = false
   local socket={}
@@ -80,7 +91,7 @@ if package.loaded.copas then
         return d,e
       end
       function client:close()
-        s:close()
+        return s:close()
       end
     return client
   end
@@ -193,6 +204,7 @@ elseif package.loaded.lgi then
       if not ok then return nil,err.message end
       return data:len()
     end
+    local rresume={}
     function client:receive()
       if not conn then return nil,"closed" end
       local is=conn:get_input_stream()
@@ -201,8 +213,10 @@ elseif package.loaded.lgi then
       local len=0
       local buf=bytes.new(4096)
       local err
+      rresume[me]=true
       is:read_async(buf,GLib.PRIORITY_DEFAULT,nil,function(self,b)
         len,err=is:read_finish(b)
+        rresume[me]=nil
         scheduler.resume(me)
       end)
       coroutine.yield()
@@ -215,6 +229,7 @@ elseif package.loaded.lgi then
     function client:close()
       if not conn then return nil,"closed" end
       conn:close()
+      for k,v in pairs(rresume) do scheduler.resume(k) rresume[k]=nil end
     end
     return client
   end

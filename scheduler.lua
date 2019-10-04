@@ -54,6 +54,7 @@ local function compat_copas()
   debug.getregistry ().scheduler=scheduler
   local threads={}
   function scheduler.addthread(func,...)
+    if not func then error("Invalid Function",2) end
     local args={...}
     local L=copas.addthread(function()
       func(unpack(args))
