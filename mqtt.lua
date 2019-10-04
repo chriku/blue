@@ -16,6 +16,9 @@
 -- along with the Blue-Scheduler. If not, see <http://www.gnu.org/licenses/>.
 
 --- MQTT v3.1.1 Client
+
+
+--TODO: remove resend!!!
 local socket=require"blue.bsocket"
 local scheduler=require"blue.scheduler"
 local util=require"blue.util"
@@ -92,10 +95,10 @@ local function do_fixed_header(type,rest,flags)
   local b2=encode_mqtt_varint(rest:len())
   return string.char(b1)..b2..rest
 end
-function mqtt.connect(host,port,username,password)
+function mqtt.connect(host,port,username,password)--TODO: timeout if error
   local socket=assert(socket.connect(host,port))
   local function send_packet(type,content,flags)
-    socket:send(do_fixed_header(type,table.concat(content),flags))
+    return socket:send(do_fixed_header(type,table.concat(content),flags))
   end
   local mqtt_ctx={}
   local handlers={}
@@ -118,7 +121,7 @@ function mqtt.connect(host,port,username,password)
     if password then flags=flags+64 end
     if username then flags=flags+128 end
     table.insert(content,string.char(flags))
-    table.insert(content,encode_mqtt_int(0))--TODO: add keep alive
+    table.insert(content,encode_mqtt_int(10))--TODO: add keep alive
     table.insert(content,encode_mqtt_utf8(""))--Session ID
     if username then table.insert(content,encode_mqtt_utf8(username)) end
     if password then table.insert(content,encode_mqtt_utf8(password)) end
@@ -129,6 +132,16 @@ function mqtt.connect(host,port,username,password)
   local function new_packet_id()
     for i=1,65535 do
       if not packet_id_client[i] then return i end
+    end
+  end
+  local function id_handler(flags,data)--TODO: check message type
+    local id,pos=decode_mqtt_int(data,1)
+    data=data:sub(pos)
+    if packet_id_client[id] then
+      scheduler.addthread(packet_id_client[id],data)
+      packet_id_client[id]=nil--Resend?
+    else
+      error("TODO")
     end
   end
   local resume
@@ -154,42 +167,92 @@ function mqtt.connect(host,port,username,password)
   function mqtt_ctx.publish(topic,qos,data)
     local content={}
     table.insert(content,encode_mqtt_utf8(topic))
-    table.insert(content,data)
     local flags=0
     flags=flags+((qos%4)*2)
-    if qos==0 or qos==1 then
-      send_packet("PUBLISH",content,flags)
+    local id
+    local resume
+    local handler
+    if qos==0 then
+    elseif qos==1 or qos==2 then
+      id=new_packet_id()
+      table.insert(content,encode_mqtt_int(id))
+      function h(flags,data)
+        resume()
+      end
+      packet_id_client[id]=handler
     else
       error("TODO")
     end
-    if qos==1 then error("TODO") end
+    table.insert(content,data)
+    send_packet("PUBLISH",content,flags)
+    if qos==1 or qos==2 then
+      scheduler.addthread(function()
+        while packet_id_client[id]==handler do
+          scheduler.sleep(1)
+          if not packet_id_client[id] then break end
+          local good=send_packet("PUBLISH",content,flags+0x8)
+          if not good then break end
+        end
+      end)
+      resume=scheduler.getresume()
+      scheduler.yield()
+    end
   end
   handlers[packages["PUBLISH"]]=function(flags,data,retain)
     assert(not retain,"TODO")
     local qos=(math.floor(flags/2)%4)
-    print("DUP",math.floor(flags/8)%2,flags)
     local topic,pos=decode_mqtt_utf8(data)
     local id
+    local do_cb
     if qos==1 then
       id=decode_mqtt_int(data,pos)
       local content={}
       table.insert(content,encode_mqtt_int(id))
-    elseif qos==2 then error("TODO")
+      send_packet("PUBACK",content)
+    elseif qos==2 then
+      id=decode_mqtt_int(data,pos)
+      local content={}
+      table.insert(content,encode_mqtt_int(id))
+      send_packet("PUBREC",content)
+      packet_id_client[id]=function() do_cb() end
     elseif qos~=0 then
       error("TODO")
     end
     data=data:sub(pos)
-    for k,v in pairs(publish_handlers) do
-      k=k:gsub("[^a-z0-9/%+%#]","%%%1")
-      k=k:gsub("%+","[^/]*")
-      k=k:gsub("%#",".*")
-      if topic:find("^"..k.."$") then scheduler.addthread(v,data) end
+    function do_cb()
+      for k,v in pairs(publish_handlers) do
+        k=k:gsub("[^a-z0-9/%+%#]","%%%1")
+        k=k:gsub("%+","[^/]*")
+        k=k:gsub("%#",".*")
+        if topic:find("^"..k.."$") then scheduler.addthread(v,data) end
+      end
+    end
+    if qos~=2 then do_cb() end
+  end
+  handlers[packages["PUBACK"]]=id_handler
+  handlers[packages["PUBREC"]]=function(flags,data)
+    local id,pos=decode_mqtt_int(data,1)
+    data=data:sub(pos)
+    if packet_id_client[id] then
+      local h=packet_id_client[id]--TODO: handle resend
+      packet_id_client[id]=h2
+      send_packet("PUBREL",{encode_mqtt_int(id)})
+    else
+      error("TODO")
     end
   end
-  handlers[packages["PUBACK"]]=function() error("TODO") end
-  handlers[packages["PUBREC"]]=function() error("TODO") end
-  handlers[packages["PUBREL"]]=function() error("TODO") end
-  handlers[packages["PUBCOMP"]]=function() error("TODO") end
+  handlers[packages["PUBREL"]]=function(flags,data)
+    local id,pos=decode_mqtt_int(data,1)
+    data=data:sub(pos)
+    send_packet("PUBCOMP",{encode_mqtt_int(id)})
+    if packet_id_client[id] then
+      scheduler.addthread(packet_id_client[id],data)
+      packet_id_client[id]=nil
+    else
+      error("TODO")
+    end
+  end
+  handlers[packages["PUBCOMP"]]=id_handler
   function mqtt_ctx.subscribe(topic,qos,cb)
     local id=new_packet_id()
     local content={}
@@ -215,27 +278,34 @@ function mqtt.connect(host,port,username,password)
     return scheduler.yield()
   end
   handlers[packages["SUBSCRIBE"]]=function() error("INV") end
-  handlers[packages["SUBACK"]]=function(flags,data)
-    local id,pos=decode_mqtt_int(data,1)
-    data=data:sub(pos)
-    if packet_id_client[id] then
-      packet_id_client[id](data)
-    else
-      error("TODO")
-    end
-  end
+  handlers[packages["SUBACK"]]=id_handler
   function mqtt_ctx.unsubscribe() error("TODO") end
   handlers[packages["UNSUBSCRIBE"]]=function() error("INV") end
   handlers[packages["UNSUBACK"]]=function() error("TODO") end
-  function mqtt_ctx.ping() error("TODO") end
+  local last_resp={}
   handlers[packages["PINGREQ"]]=function() error("INV") end
-  handlers[packages["PINGRESP"]]=function() error("TODO") end
-  handlers[packages["INV"]]=function() error("TODO") end
-  function mqtt_ctx.close() error("TODO") end
+  handlers[packages["PINGRESP"]]=function() last_resp={} end
+  handlers[packages["DISCONNECT"]]=function() error("INV") end
+  function mqtt_ctx.close() error("TODO: Close") end
+  local open=true
+  scheduler.addthread(function()
+    while open do
+      scheduler.sleep(5)--TODO: Check for other Packets, Check for close, ...
+      if not open then return end
+      local this_resp=last_resp
+      local sent=send_packet("PINGREQ",{})
+      if not sent then return end
+      scheduler.sleep(1)--TODO
+      if this_resp==last_resp then
+        mqtt_ctx.close()
+      end
+    end
+  end)
   scheduler.addthread(function()
     local buf=""
     while true do
-      local something=assert(socket:receive())
+      local something=socket:receive()
+      if not something then open=false break end
       buf=buf..something
       while true do
         local len,pos=decode_mqtt_varint(buf,2)
