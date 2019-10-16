@@ -91,7 +91,8 @@ local function answer(socket)
     args["X-"..k]=v
   end
   args.method=method
-  args.page=page
+  args.page=page:match("^[^%?]*")
+  args.url=page
   args.content=d
   args.fdata=fdata
   args.rest=buf
