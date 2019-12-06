@@ -102,7 +102,7 @@ end
 local function rdecode(data,int,hd)
   if type(data)~="table" then
     print(type(data),":",data)
-    print(debug.traceback())
+    --print(debug.traceback())
   else
     for k,v in pairs(data) do
       for i=1,int do io.write"  " end
@@ -291,5 +291,9 @@ function util.pair()
   conn(s1,s2)
   conn(s2,s1)
   return s1,s2
+end
+function util.urlencode(str)
+  str=str:gsub(".",function(a)return "%"..string.format("%02X",string.byte(a)) end)
+  return str
 end
 return util

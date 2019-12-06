@@ -90,6 +90,10 @@ if package.loaded.copas then
         local d,e=copas.receive(s,1)
         return d,e
       end
+      function client:handshake()
+        local err s,err=copas.dohandshake(s,{mode = "client",protocol = "any",verify = "none",options = {"all", "no_sslv3"}})
+        return (not not s),err
+      end
       function client:close()
         return s:close()
       end
