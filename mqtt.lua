@@ -18,7 +18,6 @@
 --- MQTT v3.1.1 Client
 
 
-local socket=require"blue.bsocket"
 local scheduler=require"blue.scheduler"
 local util=require"blue.util"
 local mqtt={}
@@ -94,10 +93,10 @@ local function do_fixed_header(type,rest,flags)
   local b2=encode_mqtt_varint(rest:len())
   return string.char(b1)..b2..rest
 end
-function mqtt.connect(host,port,username,password,settings)--TODO: timeout if error
+function mqtt.connect(host,port,username,password,settings,socket_provider)--TODO: timeout if error
   settings=settings or {}
   local keep_alive=settings.keep_alive or 0
-  local socket=assert(socket.connect(host,port))
+  local socket=assert((socket_provider or require"blue.bsocket").connect(host,port))
   local function send_packet(type,content,flags)
     return socket:send(do_fixed_header(type,table.concat(content),flags))
   end

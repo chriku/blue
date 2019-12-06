@@ -1,8 +1,8 @@
-local socket=require"blue.bsocket"
 local scheduler=require"blue.scheduler"
 local http={}
-function http.request(url,data,req)
+function http.request(url,data,req,socket_provider)
   req=req or {}
+  local socket=socket_provider or require"blue.bsocket"
   local proto,host,port,page=url:match("^http(s*)://([^/:]*):*([^/:]-)/(.-)$")
   local secure=proto=="s"
   local conn
