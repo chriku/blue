@@ -25,14 +25,16 @@
 -- @tparam time number seconds
 
 --- New Thread
--- @noyield
 -- @function scheduler.addthread
 -- @tparam function func
 -- @param ... Arguments to be passed through
 
+-- @noyield
+
 --- Get Function to resume thread
 -- @function scheduler.getresume
 -- @treturn function Callback to resume this thread
+
 -- @noyield
 
 --- Yield thread

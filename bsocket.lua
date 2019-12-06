@@ -16,7 +16,7 @@
 -- along with the Blue-Scheduler. If not, see <http://www.gnu.org/licenses/>.
 
 --- Blue socket abstraction
--- @classmod socket
+-- @classmod bsocket
 
 --- Connect to remote host
 -- @function connect
@@ -30,6 +30,7 @@
 -- @function bind
 -- @tparam string host Hostanme to listen on
 -- @tparam integer port Port
+-- @tparam function cb The callback to be called with the new socket
 -- @treturn[1] socket Resulting server
 -- @treturn[2] nil
 -- @treturn[2] string Error message
@@ -62,8 +63,9 @@
 -- @treturn[1] integer Resulting port
 
 --- Stop listening
--- @nyi a b c
 -- @function server:close
+
+-- @nyi a b c
 
 if package.loaded.copas then
   local lsocket=require"socket"
