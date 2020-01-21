@@ -3,15 +3,16 @@ local http={}
 function http.request(url,data,req,socket_provider)
   req=req or {}
   local socket=socket_provider or require"blue.bsocket"
-  local proto,host,port,page=url:match("^http(s*)://([^/:]*):*([^/:]-)/(.-)$")
+  local proto,host,port,page=url:match("^http(s*)://([^/:]*):*([^/:]*)(.-)$")
+  if page=="" then page="/" end
+  assert(page:find("^/"))
   local secure=proto=="s"
   local conn
-  conn=assert(socket.connect(host,tonumber(port.."") or (secure and 443 or 80)))
   if secure then
-    if not conn.handshake then error("Scheduler system doesn't support TLS",2) end
-    assert(conn:handshake())
+    socket=require"blue.ssl".create(socket_provider)
   end
-  local npage="/"..page
+  conn=assert(socket.connect(host,tonumber(port.."") or (secure and 443 or 80)))
+  local npage=page
   local method="GET"
   if data then method= req[":method"] or "POST" req["content-length"]=data:len() end
   conn:send(method.." "..npage.." HTTP/1.1\r\n")
@@ -70,7 +71,7 @@ function http.request(url,data,req,socket_provider)
       local content=""
       local len=tonumber(headers["content-length"] or "0")
       if headers["transfer-encoding"]=="chunked" then
-        error("TODO: Catch errors")
+        --error("TODO: Catch errors")
         repeat
           local c=""
           local l=getline()
@@ -93,7 +94,8 @@ function http.request(url,data,req,socket_provider)
       else
         content=buf
         while content:len()<len do
-          content=content..conn:receive()
+--print(content)
+          content=content..assert(conn:receive())
         end
       end
       if not cb then return end

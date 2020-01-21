@@ -122,7 +122,7 @@ function decode(data)
   rdecode(data,0,{})
   print("===== END =====")
 end
-debug.setmetatable(_G,{__index=function(self,k) error("NOPEI: "..tostring(k),2) end,__newindex=function(self,k) print("NOPEN: "..tostring(k),2) error("NOPEN: "..tostring(k),2) end})
+--debug.setmetatable(_G,{__index=function(self,k) error("NOPEI: "..tostring(k),2) end,__newindex=function(self,k) print("NOPEN: "..tostring(k),2) error("NOPEN: "..tostring(k),2) end})
 do
   local todel=setmetatable({},{__mode="k"})
   local running=false

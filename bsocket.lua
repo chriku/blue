@@ -216,21 +216,20 @@ elseif package.loaded.lgi then
       local is=conn:get_input_stream()
       if (is:is_closed() and not is:has_pending()) then return nil,"closed" end
       local me=assert(coroutine.running(),"MT")
-      local len=0
-      local buf=bytes.new(4096)
-      local err
+      local err,data
       rresume[me]=true
-      is:read_async(buf,GLib.PRIORITY_DEFAULT,nil,function(self,b)
-        len,err=is:read_finish(b)
+      is:read_bytes_async(4096,GLib.PRIORITY_DEFAULT,nil,function(self,b)
+        data,err=is:read_bytes_finish(b)
         rresume[me]=nil
         scheduler.resume(me)
       end)
       coroutine.yield()
+      local len=data:get_size()
       --print("RECV",len,err)
       --if len<=0 then print("RERR",err) end
       if len==0 then return nil,"closed" end
-      if len<0 then return nil,err.message end
-      return tostring(buf):sub(1,len)
+      if err then return nil,err.message end
+      return tostring(data:get_data()):sub(1,len)
     end
     function client:close()
       if not conn then return nil,"closed" end

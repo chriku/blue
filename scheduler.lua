@@ -149,6 +149,7 @@ local function compat_glib()
     return co
   end
   function scheduler.sleep(time)
+    assert(time>=0)
     local me=assert(coroutine.running(),"MT")
     GLib.timeout_add(GLib.PRIORITY_DEFAULT,time*1000,function()
       if me then
