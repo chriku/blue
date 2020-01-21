@@ -169,7 +169,7 @@ function matrix.connect(host,user,pass)
   end
   local since
   local function sync()
-    local code,sync=request.get("/_matrix/client/r0/sync?timeout=1500&"..(since and "since="..util.urlencode(since) or ""))
+    local code,sync=request.get("/_matrix/client/r0/sync?timeout=15000&"..(since and "since="..util.urlencode(since) or ""))
     sync.presence=nil
     sync.account_data=nil
     local is_first=not since
