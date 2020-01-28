@@ -14,18 +14,19 @@
 -- 
 -- You should have received a copy of the GNU Lesser General Public License
 -- along with the Blue-Scheduler. If not, see <http://www.gnu.org/licenses/>.
-
 return function(conn)
-  conn.user={}
-  local users={}
+  conn.user = {}
+  local users = {}
   function conn.user.create_user(event)
-    if users[event.sender] then return users[event.sender] end
-    local handle={}
-    handle.name=event.content.displayname
-    handle.id=event.sender
-    print(conn.user_id,event.sender)
-    handle.self=conn.user_id==event.sender
-    users[event.sender]=handle
+    if users[event.sender] then
+      return users[event.sender]
+    end
+    local handle = {}
+    handle.name = event.content.displayname
+    handle.id = event.sender
+    print(conn.user_id, event.sender)
+    handle.self = conn.user_id == event.sender
+    users[event.sender] = handle
     return handle
   end
   function conn.user.find_user(user_id)

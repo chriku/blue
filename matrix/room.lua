@@ -14,12 +14,11 @@
 -- 
 -- You should have received a copy of the GNU Lesser General Public License
 -- along with the Blue-Scheduler. If not, see <http://www.gnu.org/licenses/>.
-
-return function(meta,room_handle,handle,conn)
+return function(meta, room_handle, handle, conn)
   function meta.index:send_text_message(msg)
-    meta.send_message_event("m.room.message",{msgtype="m.text",body=msg})
+    meta.send_message_event("m.room.message", {msgtype = "m.text", body = msg})
   end
   function meta.index:send_message(msg)
-    meta.send_message_event("m.room.message",msg)
+    meta.send_message_event("m.room.message", msg)
   end
 end

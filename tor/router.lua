@@ -1,2 +1,2 @@
-local router={}
+local router = {}
 return router

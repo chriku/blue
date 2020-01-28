@@ -35,125 +35,128 @@ Secret Input F5 7B 1C 69 7F F8 D1 42 5D 2D 45 B2 13 37 9A 09 9F 37 68 95 39 BA 0
 Verify B6 9A 2F DE 28 48 94 35 2B 8D CB B0 7A 1A C6 01 34 43 FE 40 EA 65 D0 7D 0B A6 27 39 6A 9A 23 DF
 Auth Input B6 9A 2F DE 28 48 94 35 2B 8D CB B0 7A 1A C6 01 34 43 FE 40 EA 65 D0 7D 0B A6 27 39 6A 9A 23 DF 53 02 77 86 64 66 A1 42 5F 43 A7 3D BF CB 5F C7 41 0C 98 52 5E 89 5D 65 30 4A 3A 18 94 61 66 60 14 3F 7A F5 75 7F E0 8B C1 80 45 C7 85 5E E8 DE BB 9E 6C 47 75 C9 A4 7B 6A C0 6C 9F E4 59 3E 55 98 60 09 EF 7D DF AF 91 0C 9B 25 E0 57 C2 DE 0E 41 31 11 06 9B C7 81 30 79 F1 57 E3 1B D2 D0 FE 1E 47 1F 4C 15 F2 27 8D 1A 26 04 B2 0B A9 C7 76 80 A9 C7 31 6E 74 6F 72 2D 63 75 72 76 65 32 35 35 31 39 2D 73 68 61 32 35 36 2D 31 53 65 72 76 65 72
 Auth 13 1F D5 95 56 7B 34 47 BE 23 BD 3F ED 9F 33 7E 2F E6 CD 15 01 72 93 B2 42 D7 EE 26 AB 03 F6 2D 00 00 D0 09 DA A1 04 56 00 00 00 3D 6D 94 B2 FD A7 3B 68 7C 1E A2 04 56 00 00 68 7C 1E A2 04 56 00 00 A6 B6 EA EA FC 7F 00 00 48 00 00 00 00 00 00 00 10 B6 EA EA FC 7F 00 00 80 7C 1E A2 04 56 00 00 90 A8 1A A2 04 56 00 00 BD 01 CA A0 04 56 00 00 5C 00 00 00 00 00 00 00 08 B6 EA EA FC 7F 00 00 00 00 00 00 00 00 00 00 00 3D 6D 94 B2 FD A7 3B 00 00 00 00 00 00 00 00 A2 B6 EA EA FC 7F 00 00 60 7C 1E A2 04 56 00 00 D0 09 DA A1 04 56 00 00
-]]
-require"tor.dir"
-local tor={}
-local PAYLOAD_LEN=509
-local PK_PAD_LEN=42
-local PK_ENC_LEN=128
-local HASH_LEN=20
-local ID_LENGTH=20
-local ssl=require"blue.ssl"
-local struct=require"blue.struct"
-local curve=require"blue.tor.curve"
-require"blue.sha1"
-local sha1=require"blue.sha1_raw"
-local rsa=require"blue.tor.rsa"
-local hmac=require"blue.tor.hmac"
-local aes=require"blue.tor.aes"
+]] require "tor.dir"
+local tor = {}
+local PAYLOAD_LEN = 509
+local PK_PAD_LEN = 42
+local PK_ENC_LEN = 128
+local HASH_LEN = 20
+local ID_LENGTH = 20
+local ssl = require "blue.ssl"
+local struct = require "blue.struct"
+local curve = require "blue.tor.curve"
+require "blue.sha1"
+local sha1 = require "blue.sha1_raw"
+local rsa = require "blue.tor.rsa"
+local hmac = require "blue.tor.hmac"
+local aes = require "blue.tor.aes"
 function tor.create(args)
   assert(args.first_relay)
   assert(args.first_relay.ip)
   assert(args.first_relay.port)
-  local socket_provider=ssl.create()
-  print("CONN TO",args.first_relay.ip,args.first_relay.port)
-  local conn=socket_provider.connect(args.first_relay.ip,args.first_relay.port)
+  local socket_provider = ssl.create()
+  print("CONN TO", args.first_relay.ip, args.first_relay.port)
+  local conn = socket_provider.connect(args.first_relay.ip, args.first_relay.port)
   print("Connected")
-  assert(conn:send(struct.pack(">HB HH",0,7,2,3)))
+  assert(conn:send(struct.pack(">HB HH", 0, 7, 2, 3)))
   print("Sent")
   local function send_cell()
   end
   local function read_version_cell()
-    local buf=assert(conn:receive())
+    local buf = assert(conn:receive())
     while true do
-      if buf:len()>=7 then
-        local _,tp,len=struct.unpack(">HBH",buf)
-        assert(tp==7)
-        if buf:len()>=5+len then
-          for i=1,len/2 do
-            local vnum=struct.unpack(">H",buf:sub(6+((i-1)*2)))
-            if vnum==3 then return buf:sub(6+len) end
+      if buf:len() >= 7 then
+        local _, tp, len = struct.unpack(">HBH", buf)
+        assert(tp == 7)
+        if buf:len() >= 5 + len then
+          for i = 1, len / 2 do
+            local vnum = struct.unpack(">H", buf:sub(6 + ((i - 1) * 2)))
+            if vnum == 3 then
+              return buf:sub(6 + len)
+            end
           end
           error("Protocol Version Missing")
         end
       end
-      buf=buf..assert(conn:receive())
+      buf = buf .. assert(conn:receive())
     end
     return buf
   end
 
-  local buf=read_version_cell()
+  local buf = read_version_cell()
 
   local function ensure_buf(len)
-    while buf:len()<len do
-print("REQUIRING",buf:len(),"of",len)
-      buf=buf..assert(conn:receive())
+    while buf:len() < len do
+      print("REQUIRING", buf:len(), "of", len)
+      buf = buf .. assert(conn:receive())
     end
   end
 
   local function read_cell()
     ensure_buf(3)
-    local CircID,cmd=struct.unpack(">HB",buf)
-    local len=PAYLOAD_LEN
-    local start=4
-    if cmd==7 or cmd>=128 then
+    local CircID, cmd = struct.unpack(">HB", buf)
+    local len = PAYLOAD_LEN
+    local start = 4
+    if cmd == 7 or cmd >= 128 then
       ensure_buf(5)
-      len=struct.unpack(">H",buf:sub(start))
-      start=6
+      len = struct.unpack(">H", buf:sub(start))
+      start = 6
     end
-    ensure_buf(start+len-1)
-    local data=buf:sub(start,start+len-1)
-    buf=buf:sub(start+len)
-    print("READ CELL",cmd)
-    return cmd,CircID,data
+    ensure_buf(start + len - 1)
+    local data = buf:sub(start, start + len - 1)
+    buf = buf:sub(start + len)
+    print("READ CELL", cmd)
+    return cmd, CircID, data
   end
-  local certs={}
-  local function read_certs_cell(cmd,CircID,data)
-    assert(cmd==129)
-    local N=struct.unpack(">B",data)
-    local pos=2
-    for i=1,N do
-      local type,len=struct.unpack(">BH",data:sub(pos))
-      local cert=data:sub(pos+3,pos+3+len-1)
-      pos=pos+3+len
-print("CERT",type,cert:len())
-assert(not certs[type])
-      certs[type]=cert
+  local certs = {}
+  local function read_certs_cell(cmd, CircID, data)
+    assert(cmd == 129)
+    local N = struct.unpack(">B", data)
+    local pos = 2
+    for i = 1, N do
+      local type, len = struct.unpack(">BH", data:sub(pos))
+      local cert = data:sub(pos + 3, pos + 3 + len - 1)
+      pos = pos + 3 + len
+      print("CERT", type, cert:len())
+      assert(not certs[type])
+      certs[type] = cert
     end
   end
-  local function read_challenge_cell(cmd,CircID,data)
-    assert(cmd==130)
-    local challenge=data:sub(1,32)
-    local method_count=struct.unpack(">H",data:sub(33))
-    for i=1,method_count do
-      local method=struct.unpack(">H",data:sub(35+(i-1)*2))
+  local function read_challenge_cell(cmd, CircID, data)
+    assert(cmd == 130)
+    local challenge = data:sub(1, 32)
+    local method_count = struct.unpack(">H", data:sub(33))
+    for i = 1, method_count do
+      local method = struct.unpack(">H", data:sub(35 + (i - 1) * 2))
     end
   end
   local function read_addr(data)
-    local type,len=struct.unpack(">BB",data)
-    local addr=data:sub(3,3+len-1)
-    return data:sub(3+len)
+    local type, len = struct.unpack(">BB", data)
+    local addr = data:sub(3, 3 + len - 1)
+    return data:sub(3 + len)
   end
   local rfc
-  local function read_created2_cell(cmd,CircID,data)
-    assert(cmd==11)
-    local hlen=struct.unpack(">H",data)
-    local hdata=data:sub(3,3+hlen-1)
+  local function read_created2_cell(cmd, CircID, data)
+    assert(cmd == 11)
+    local hlen = struct.unpack(">H", data)
+    local hdata = data:sub(3, 3 + hlen - 1)
     rfc(hdata)
   end
-  local function read_destroy_cell(cmd,CircID,data)
-    assert(cmd==4)
-    print(({[0]="NONE","PROTOCOL","INTERNAL","REQUESTED","HIBERNATING","RESOURCELIMIT","CONNECTFAILED","OR_IDENTITY","OR_CONN_CLOSED","FINISHED","TIMEOUT","DESTROYED","NOSUCHSERVICE"})[string.byte(data)])
+  local function read_destroy_cell(cmd, CircID, data)
+    assert(cmd == 4)
+    print(
+        ({[0] = "NONE", "PROTOCOL", "INTERNAL", "REQUESTED", "HIBERNATING", "RESOURCELIMIT", "CONNECTFAILED", "OR_IDENTITY", "OR_CONN_CLOSED", "FINISHED", "TIMEOUT", "DESTROYED", "NOSUCHSERVICE"})[string.byte(
+            data)])
     error("Destroy")
   end
-  local function read_netinfo_cell(cmd,CircID,data)
-    assert(cmd==8)
-    local time=struct.unpack(">I",data)
-    data=read_addr(data:sub(5))
-    local my_addr_cnt=struct.unpack(">B",data)
-    data=data:sub(2)
-    for i=1,my_addr_cnt do
-      data=read_addr(data)
+  local function read_netinfo_cell(cmd, CircID, data)
+    assert(cmd == 8)
+    local time = struct.unpack(">I", data)
+    data = read_addr(data:sub(5))
+    local my_addr_cnt = struct.unpack(">B", data)
+    data = data:sub(2)
+    for i = 1, my_addr_cnt do
+      data = read_addr(data)
     end
   end
 
@@ -162,11 +165,11 @@ assert(not certs[type])
   read_netinfo_cell(read_cell())
 
   local function parse_ed25519(str)
-print(enc(str))
-    local version,type,exp,cert_key_type,certified_key,n_extensions=struct.unpack(">BBIBc32B",str)
-assert(version==1,"Invalid Version")
-assert(cert_key_type==1,"Invalid Type")
-print("ED TYPE",type)
+    print(enc(str))
+    local version, type, exp, cert_key_type, certified_key, n_extensions = struct.unpack(">BBIBc32B", str)
+    assert(version == 1, "Invalid Version")
+    assert(cert_key_type == 1, "Invalid Type")
+    print("ED TYPE", type)
     --[[str=str:sub(41)
     for i=1,n_extensions do
       local len,type,flags=struct.unpack(">HBB",str)
@@ -177,86 +180,86 @@ print("ED TYPE",type)
     return certified_key
   end
 
-local function rfc5869(key,salt,info)
-  local k={hmac(info..string.char(1),key)}
-  for i=2,100 do
-    k[i]=hmac(k[i-1]..info..string.char(i),key)
+  local function rfc5869(key, salt, info)
+    local k = {hmac(info .. string.char(1), key)}
+    for i = 2, 100 do
+      k[i] = hmac(k[i - 1] .. info .. string.char(i), key)
+    end
+    return table.concat(k)
   end
-  return table.concat(k)
-end
 
-local key_forward
+  local key_forward
 
   local function create_ntor()
-    local dig=rsa.load_cert(certs[2]):digest()
-    local X,x=curve.gen_key()
-    --local B=parse_ed25519(certs[4])
-    --local B=parse_ed25519(certs[5])
-    local B=require"base64".decode("A9OYkoVFLF4G/Jwd+5gJ6hyaaw+/8aR47K6X8Sojo2E=")--TODO!!!
-    local ID=dig:sub(1,20)
-    local ret=struct.pack(">c20c32c32",dig:sub(1,20),B,X)
-    return ret,function(hdata)
-      local Y=hdata:sub(1,32)
-      local auth=hdata:sub(33):sub(1,32)
-      local PROTOID="ntor-curve25519-sha256-1"
-      local secret_input=curve.handshake(x,Y)..curve.handshake(x,B)..ID..B..X..Y..PROTOID
-      local seed=hmac(secret_input,PROTOID..":key_extract")
-      local verify=hmac(secret_input,PROTOID..":verify")
-      local auth_input=verify..ID..B..Y..X..PROTOID.."Server"
-      local auth_v=hmac(auth_input,PROTOID..":mac")
-      assert(auth_v==auth,"Invalid hash")
-      local long_key=rfc5869(secret_input,PROTOID..":key_extract",PROTOID..":key_expand")
-      local Df=long_key:sub(1,20)
-      local Db=long_key:sub(21,40)
-      local Kf=long_key:sub(41,56)
-      local Kb=long_key:sub(57,72)
-      local KH=long_key:sub(73,72+32)
-      key_forward=Kf
+    local dig = rsa.load_cert(certs[2]):digest()
+    local X, x = curve.gen_key()
+    -- local B=parse_ed25519(certs[4])
+    -- local B=parse_ed25519(certs[5])
+    local B = require"base64".decode("A9OYkoVFLF4G/Jwd+5gJ6hyaaw+/8aR47K6X8Sojo2E=") -- TODO!!!
+    local ID = dig:sub(1, 20)
+    local ret = struct.pack(">c20c32c32", dig:sub(1, 20), B, X)
+    return ret, function(hdata)
+      local Y = hdata:sub(1, 32)
+      local auth = hdata:sub(33):sub(1, 32)
+      local PROTOID = "ntor-curve25519-sha256-1"
+      local secret_input = curve.handshake(x, Y) .. curve.handshake(x, B) .. ID .. B .. X .. Y .. PROTOID
+      local seed = hmac(secret_input, PROTOID .. ":key_extract")
+      local verify = hmac(secret_input, PROTOID .. ":verify")
+      local auth_input = verify .. ID .. B .. Y .. X .. PROTOID .. "Server"
+      local auth_v = hmac(auth_input, PROTOID .. ":mac")
+      assert(auth_v == auth, "Invalid hash")
+      local long_key = rfc5869(secret_input, PROTOID .. ":key_extract", PROTOID .. ":key_expand")
+      local Df = long_key:sub(1, 20)
+      local Db = long_key:sub(21, 40)
+      local Kf = long_key:sub(41, 56)
+      local Kb = long_key:sub(57, 72)
+      local KH = long_key:sub(73, 72 + 32)
+      key_forward = Kf
     end
   end
---local _,a=create_ntor()
---a()
---os.exit()
+  -- local _,a=create_ntor()
+  -- a()
+  -- os.exit()
 
   local function send_create_cell()
     local ud
-    ud,rfc=create_ntor()
-    local pkg=struct.pack(">HB HH",1,10,2,ud:len())..ud
-    pkg=pkg..string.rep(string.char(0),(PAYLOAD_LEN+3)-pkg:len())
-    --print(pkg:gsub(".",function(a)return string.format("%02X ",string.byte(a))end))
+    ud, rfc = create_ntor()
+    local pkg = struct.pack(">HB HH", 1, 10, 2, ud:len()) .. ud
+    pkg = pkg .. string.rep(string.char(0), (PAYLOAD_LEN + 3) - pkg:len())
+    -- print(pkg:gsub(".",function(a)return string.format("%02X ",string.byte(a))end))
     assert(conn:send(pkg))
   end
 
-  local pkg=struct.pack(">HB I BB BBBB B",0,8,os.time(),4,4, 0,0,0,0, 0)
-  pkg=pkg..string.rep(string.char(0),(PAYLOAD_LEN+3)-pkg:len())
-  --print(pkg:gsub(".",function(a)return string.format("%02X ",string.byte(a))end))
+  local pkg = struct.pack(">HB I BB BBBB B", 0, 8, os.time(), 4, 4, 0, 0, 0, 0, 0)
+  pkg = pkg .. string.rep(string.char(0), (PAYLOAD_LEN + 3) - pkg:len())
+  -- print(pkg:gsub(".",function(a)return string.format("%02X ",string.byte(a))end))
   assert(conn:send(pkg))
 
   local function send_relay_cell()
-    local ud=struct.pack(">sI","78.42.208.205:80",0x7)
-ud=""
-    --local pkg=struct.pack(">HB BHHIH",0,3,13,0,1,0,ud:len())..ud
-local stream=aes.new(key_forward)
-local encd=stream.encrypt(struct.pack(">BHHIH",13,0,1,0,ud:len())..ud..string.rep(string.char(0),PAYLOAD_LEN-11-ud:len()))
-encd=encd..stream.close()
-    local pkg=struct.pack(">HB",1,3)..encd
-print("PACKAGE LEMNGTH",pkg:len(),(PAYLOAD_LEN+3))
-    pkg=pkg..string.rep(string.char(0),(PAYLOAD_LEN+3)-pkg:len())
-    print(pkg:gsub(".",function(a)return string.format("%02X ",string.byte(a))end))
+    local ud = struct.pack(">sI", "78.42.208.205:80", 0x7)
+    ud = ""
+    -- local pkg=struct.pack(">HB BHHIH",0,3,13,0,1,0,ud:len())..ud
+    local stream = aes.new(key_forward)
+    local encd = stream.encrypt(struct.pack(">BHHIH", 13, 0, 1, 0, ud:len()) .. ud .. string.rep(string.char(0), PAYLOAD_LEN - 11 - ud:len()))
+    encd = encd .. stream.close()
+    local pkg = struct.pack(">HB", 1, 3) .. encd
+    print("PACKAGE LEMNGTH", pkg:len(), (PAYLOAD_LEN + 3))
+    pkg = pkg .. string.rep(string.char(0), (PAYLOAD_LEN + 3) - pkg:len())
+    print(pkg:gsub(".", function(a)
+      return string.format("%02X ", string.byte(a))
+    end))
     assert(conn:send(pkg))
   end
 
   send_create_cell()
   read_created2_cell(read_cell())
   send_relay_cell()
-  --send_create_fast_cell()
+  -- send_create_fast_cell()
 
+  read_destroy_cell(read_cell())
 
-read_destroy_cell(read_cell())
-
-
-  print("RECV",read_cell())
-  print("RECV",read_cell())
-  print("RECV",read_cell())
+  print("RECV", read_cell())
+  print("RECV", read_cell())
+  print("RECV", read_cell())
 end
 return tor

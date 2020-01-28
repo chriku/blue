@@ -1,85 +1,85 @@
---128.31.0.34:9131
-require"blue.util"
-local dir={}
-local base64=require"blue.base64"
+-- 128.31.0.34:9131
+require "blue.util"
+local dir = {}
+local base64 = require "blue.base64"
 local function read_dir(str)
-  local lines={}
-  local items={}
-  local in_block=nil
+  local lines = {}
+  local items = {}
+  local in_block = nil
   local block_data
-  local last_item={}
+  local last_item = {}
   for line in str:gmatch("[^\n]*") do
-    local object_begin=line:match("^%-%-%-%-%-BEGIN ([A-Za-z0-9%- ]+)%-%-%-%-%-$")
-    local object_end=line:match("^%-%-%-%-%-END ([A-Za-z0-9%- ]+)%-%-%-%-%-$")
-    local keyword_single=line:match("^([A-Za-z0-9%-]+)$")
-    local keyword_multi,args=line:match("^([A-Za-z0-9%-]+)[ \t]+(.-)$")
+    local object_begin = line:match("^%-%-%-%-%-BEGIN ([A-Za-z0-9%- ]+)%-%-%-%-%-$")
+    local object_end = line:match("^%-%-%-%-%-END ([A-Za-z0-9%- ]+)%-%-%-%-%-$")
+    local keyword_single = line:match("^([A-Za-z0-9%-]+)$")
+    local keyword_multi, args = line:match("^([A-Za-z0-9%-]+)[ \t]+(.-)$")
     if object_begin and not in_block then
-      in_block=object_begin
-      block_data=""
+      in_block = object_begin
+      block_data = ""
     elseif object_end then
-      assert(in_block==object_end)
-      in_block=nil
+      assert(in_block == object_end)
+      in_block = nil
       if last_item then
-        last_item.block_data={key=object_end,data=block_data}
+        last_item.block_data = {key = object_end, data = block_data}
       end
     elseif keyword_single and not in_block then
-      assert(keyword_single~="-----BEGIN")
-      local key=keyword_single
-      items[key]=items[key] or {}
-      local item={}
-      last_item=item
-      table.insert(items[key],item)
+      assert(keyword_single ~= "-----BEGIN")
+      local key = keyword_single
+      items[key] = items[key] or {}
+      local item = {}
+      last_item = item
+      table.insert(items[key], item)
     elseif keyword_multi and not in_block then
-      assert(keyword_multi~="-----BEGIN")
-      local key=keyword_multi
-      items[key]=items[key] or {}
-      local item={data=args}
-      last_item=item
-      table.insert(items[key],item)
+      assert(keyword_multi ~= "-----BEGIN")
+      local key = keyword_multi
+      items[key] = items[key] or {}
+      local item = {data = args}
+      last_item = item
+      table.insert(items[key], item)
     elseif in_block then
-      block_data=block_data..line
+      block_data = block_data .. line
     end
   end
   assert(not in_block)
-  --items.to_sign=str:match("^.*\nrouter%-signature\n")
+  -- items.to_sign=str:match("^.*\nrouter%-signature\n")
   return items
 end
 local function parse_router(items)
-  local router={}
-  local readers={}
-  table.insert(readers,function()
+  local router = {}
+  local readers = {}
+  table.insert(readers, function()
     assert(items["router"])
-    assert(#items["router"]==1)
+    assert(#items["router"] == 1)
     assert(items["router"][1].data)
-    local nickname,address,orport,_,dir_port=items["router"][1].data:match("^([^ ]*) ([0-9]*%.[0-9]*%.[0-9]*%.[0-9]*) ([0-9]*) ([0-9]*) ([0-9]*)")
-    router.nickname=assert(nickname)
-    router.address=assert(address)
-    router.orport=assert(tonumber(orport))
-    router.dir_port=assert(tonumber(dir_port))
+    local nickname, address, orport, _, dir_port = items["router"][1].data:match("^([^ ]*) ([0-9]*%.[0-9]*%.[0-9]*%.[0-9]*) ([0-9]*) ([0-9]*) ([0-9]*)")
+    router.nickname = assert(nickname)
+    router.address = assert(address)
+    router.orport = assert(tonumber(orport))
+    router.dir_port = assert(tonumber(dir_port))
   end)
-  table.insert(readers,function()
+  table.insert(readers, function()
     if items["identity-ed25519"] then
-      assert(#items["identity-ed25519"]==1)
+      assert(#items["identity-ed25519"] == 1)
       assert(items["identity-ed25519"][1].block_data)
-      assert(items["identity-ed25519"][1].block_data.key=="ED25519 CERT")
-      router.identity_ed25519=base64.decode(items["identity-ed25519"][1].block_data.data)
+      assert(items["identity-ed25519"][1].block_data.key == "ED25519 CERT")
+      router.identity_ed25519 = base64.decode(items["identity-ed25519"][1].block_data.data)
     end
   end)
-  table.insert(readers,function()
+  table.insert(readers, function()
     if items["master-key-ed25519"] then
-      assert(#items["master-key-ed25519"]==1)
+      assert(#items["master-key-ed25519"] == 1)
       assert(items["master-key-ed25519"][1].data)
-      router.master_key_ed25519=base64.decode(items["master-key-ed25519"][1].data)
+      router.master_key_ed25519 = base64.decode(items["master-key-ed25519"][1].data)
     end
   end)
-  table.insert(readers,function()
+  table.insert(readers, function()
     if items["ntor-onion-key"] then
-      assert(#items["ntor-onion-key"]==1)
+      assert(#items["ntor-onion-key"] == 1)
       assert(items["ntor-onion-key"][1].data)
-      router.ntor_onion_key=base64.decode(items["ntor-onion-key"][1].data)
+      router.ntor_onion_key = base64.decode(items["ntor-onion-key"][1].data)
     end
   end)
-  for _,reader in ipairs(readers) do
+  for _, reader in ipairs(readers) do
     reader()
   end
   return router
