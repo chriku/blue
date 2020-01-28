@@ -93,17 +93,21 @@ function prov.connect(host,port)
     for _,w in ipairs(w) do w() end
   end
   local function flush()
+    local function ef()
+      local w={unpack(waiting_sockets)}
+      waiting_sockets={}
+      for _,w in ipairs(w) do scheduler.addthread(function() scheduler.sleep(0) w() end) end
+    end
     if rec_buf:len()>0 then
       local allowed=tonumber(lib.BIO_ctrl(o,140,0,nil))-1
       if not (allowed>0) then allowed=0 end
       local data=rec_buf:sub(1,allowed)
       rec_buf=rec_buf:sub(allowed+1)
+      if rec_buf:len()>0 then error("TMI") end
       lib.BIO_write(o,data,data:len())
-      local w={unpack(waiting_sockets)}
-      waiting_sockets={}
-      for _,w in ipairs(w) do w() end
-      if allowed>0 then return true end
+      if allowed>0 then ef() return true end
     end
+    ef()
   end
   scheduler.addthread(function()
     while true do

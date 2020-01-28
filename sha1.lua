@@ -270,7 +270,7 @@ function sha1.hmac_binary(key, text)
 end
 
 setmetatable(sha1, {__call = function(_,msg) return sha1.sha1(msg) end })
-
+package.loaded["blue.sha1_raw"]=sha1
 return function(data)
   return enc(sha1.binary(data))
 end

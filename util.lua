@@ -15,6 +15,8 @@
 -- You should have received a copy of the GNU Lesser General Public License
 -- along with the Blue-Scheduler. If not, see <http://www.gnu.org/licenses/>.
 
+local hex=require"blue.hex"
+
 --- Utils
 local scheduler=require"blue.scheduler"
 if false then
@@ -110,6 +112,14 @@ local function rdecode(data,int,hd)
         hd[v]=true
         print(k)
         rdecode(v,int+1,hd)
+      elseif type(v)=="string" then
+        local cnt=0
+        local pv=v:gsub("[^\032-\126]",function(a)if a~="\0" then cnt=cnt+1 end return string.format("\\x%02X",string.byte(a))end)
+        if (cnt*2)>v:len() then
+          print(k,"hex",hex.encode(v))
+        else
+          print(k,"str",pv)
+        end
       else
         print(k,v)
       end

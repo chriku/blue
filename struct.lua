@@ -130,6 +130,7 @@ function struct.unpack(format, stream)
 
       local val = 0
       for j = 1, n do
+       if not stream then error("Missing Stream",2) end
         local byte = string.byte(stream:sub(iterator, iterator))
         if endianness then
           val = val + byte * (2 ^ ((j - 1) * 8))
