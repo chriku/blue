@@ -45,12 +45,40 @@ local ID_LENGTH = 20
 local ssl = require "blue.ssl"
 local struct = require "blue.struct"
 local curve = require "blue.tor.curve"
-require "blue.sha1"
-local sha1 = require "blue.sha1_raw"
+local sha1 = require "blue.sha1"
 local rsa = require "blue.tor.rsa"
 local hmac = require "blue.tor.hmac"
 local aes = require "blue.tor.aes"
 local ed25519 = require "blue.tor.ed25519"
+local util = require "blue.util"
+local scheduler = require "blue.scheduler"
+local create_path = require "blue.tor.path"
+local tor_cmds = {}
+do
+  local function add_cmd(id, name)
+    local cmd = {id = id, name = name}
+    tor_cmds[id] = cmd
+    tor_cmds[name] = cmd
+  end
+  add_cmd(0, "padding")
+  add_cmd(1, "create")
+  add_cmd(2, "created")
+  add_cmd(3, "relay")
+  add_cmd(4, "destroy")
+  add_cmd(5, "create_fast")
+  add_cmd(6, "created_fast")
+  add_cmd(8, "netinfo")
+  add_cmd(9, "relay_early")
+  add_cmd(10, "create2")
+  add_cmd(11, "created2")
+  add_cmd(12, "padding_negotiate")
+  add_cmd(7, "versions")
+  add_cmd(128, "vpadding")
+  add_cmd(129, "certs")
+  add_cmd(130, "auth_challenge")
+  add_cmd(131, "authenticate")
+  add_cmd(132, "authorize")
+end
 function tor.create(args)
   assert(args.first_relay)
   assert(args.first_relay.ip)
@@ -58,69 +86,93 @@ function tor.create(args)
   local socket_provider = ssl.create()
   print("CONN TO", args.first_relay.ip, args.first_relay.port)
   local conn = socket_provider.connect(args.first_relay.ip, args.first_relay.port)
-  assert(conn:send(struct.pack(">HB HH", 0, 7, 2, 3)))
-  local function send_cell()
-  end
-  local function read_version_cell()
-    local buf = assert(conn:receive())
-    while true do
-      if buf:len() >= 7 then
-        local _, tp, len = struct.unpack(">HBH", buf)
-        assert(tp == 7)
-        if buf:len() >= 5 + len then
-          for i = 1, len / 2 do
-            local vnum = struct.unpack(">H", buf:sub(6 + ((i - 1) * 2)))
-            if vnum == 3 then
-              return buf:sub(6 + len)
-            end
-          end
-          error("Protocol Version Missing")
-        end
-      end
-      buf = buf .. assert(conn:receive())
-    end
-    return buf
-  end
 
-  local buf = read_version_cell()
+  local socket_mutex = util.mutex()
+  local recv_buf = ""
+  local circ_id_len = "H"
+
+  local circuits = {}
+  local function register_circuit(id)
+    local circuit = {}
+    local buffer = {}
+    local cb
+    circuits[id] = function(cmd, data)
+      local rcb = cb
+      cb = nil
+      table.insert(buffer, {cmd = cmd, data = data})
+      if rcb then
+        scheduler.addthread(function()
+          scheduler.sleep(0)
+          rcb()
+        end)
+      end
+    end
+    function circuit:read_cell()
+      while #buffer == 0 do
+        assert(not cb, "Attempt to multithread on single circuit")
+        cb = scheduler.getresume()
+        scheduler.yield()
+      end
+      local item = table.remove(buffer, 1)
+      return tor_cmds[item.cmd].name, item.data
+    end
+    function circuit:send_raw_cell(cmd, data)
+      socket_mutex:lock()
+      print("Send Cell", tor_cmds[cmd].name)
+      local sd = struct.pack(">" .. circ_id_len .. "B", id, cmd) .. data
+      assert(conn:send(sd))
+      socket_mutex:unlock()
+    end
+    function circuit:send_cell(cmd, data)
+      assert(cmd ~= "versions")
+      local cmd_id = assert(tor_cmds[cmd]).id
+      if cmd_id >= 128 then
+        data = struct.pack(">H", data:len()) .. data
+      else
+        data = data .. string.rep(string.char(0), PAYLOAD_LEN - data:len())
+      end
+      circuit:send_raw_cell(cmd_id, data)
+    end
+    function circuit:erase()
+      circuits[id] = nil
+    end
+    return circuit
+  end
 
   local function ensure_buf(len)
-    while buf:len() < len do
-      buf = buf .. assert(conn:receive())
+    while recv_buf:len() < len do
+      recv_buf = recv_buf .. assert(conn:receive())
     end
   end
 
-  local function read_cell()
-    ensure_buf(3)
-    local CircID, cmd = struct.unpack(">HB", buf)
-    local len = PAYLOAD_LEN
-    local start = 4
-    if cmd == 7 or cmd >= 128 then
-      ensure_buf(5)
-      len = struct.unpack(">H", buf:sub(start))
-      start = 6
+  local function read_version_cell(cmd, data)
+    assert(cmd == "versions")
+    while data:len() >= 2 do
+      local vnum = struct.unpack(">H", data)
+      if vnum == 3 then
+        return true
+      end
+      data = data:sub(3)
     end
-    ensure_buf(start + len - 1)
-    local data = buf:sub(start, start + len - 1)
-    buf = buf:sub(start + len)
-    return cmd, CircID, data
+    error("Protocol 3 Missing")
   end
-  local certs = {}
-  local function read_certs_cell(cmd, CircID, data)
-    assert(cmd == 129)
+
+  local function read_certs_cell(cmd, data)
+    assert(cmd == "certs")
     local N = struct.unpack(">B", data)
     local pos = 2
     for i = 1, N do
       local type, len = struct.unpack(">BH", data:sub(pos))
       local cert = data:sub(pos + 3, pos + 3 + len - 1)
       pos = pos + 3 + len
-      print("CERT", type, cert:len())
-      assert(not certs[type])
-      certs[type] = cert
+      -- print("CERT", type, cert:len())
+      -- assert(not certs[type])
+      -- certs[type] = cert
     end
   end
-  local function read_challenge_cell(cmd, CircID, data)
-    assert(cmd == 130)
+
+  local function read_challenge_cell(cmd, data)
+    assert(cmd == "auth_challenge")
     local challenge = data:sub(1, 32)
     local method_count = struct.unpack(">H", data:sub(33))
     for i = 1, method_count do
@@ -132,6 +184,63 @@ function tor.create(args)
     local addr = data:sub(3, 3 + len - 1)
     return data:sub(3 + len)
   end
+  local function read_netinfo_cell(cmd, data)
+    assert(cmd == "netinfo")
+    local time = struct.unpack(">I", data)
+    data = read_addr(data:sub(5))
+    local my_addr_cnt = struct.unpack(">B", data)
+    data = data:sub(2)
+    for i = 1, my_addr_cnt do
+      data = read_addr(data)
+    end
+  end
+
+  scheduler.addthread(function()
+    scheduler.sleep(0.001)
+    while next(circuits) do
+      ensure_buf(3)
+      local CircID, cmd = struct.unpack(">" .. circ_id_len .. "B", recv_buf)
+      local len = PAYLOAD_LEN
+      local start = 4
+      if cmd == 7 or cmd >= 128 then
+        ensure_buf(5)
+        len = struct.unpack(">H", recv_buf:sub(start))
+        start = 6
+      end
+      ensure_buf(start + len - 1)
+      local data = recv_buf:sub(start, start + len - 1)
+      recv_buf = recv_buf:sub(start + len)
+      print("Receive Cell", tor_cmds[cmd].name)
+      if circuits[CircID] then
+        circuits[CircID](cmd, data)
+      else
+        print("Package for unregistered circuit", CircID)
+      end
+    end
+  end)
+
+  local control = register_circuit(0)
+
+  control:send_raw_cell(7, struct.pack(">HH", 2, 3))
+
+  assert(read_version_cell(control:read_cell()))
+  read_certs_cell(control:read_cell())
+  read_challenge_cell(control:read_cell())
+  read_netinfo_cell(control:read_cell())
+
+  control:send_cell("netinfo", struct.pack(">I BB BBBB B", os.time(), 4, 4, 0, 0, 0, 0, 0))
+
+  local test_circuit = create_path(register_circuit(1), require"blue.tests.tor_node_infos"["moria1"])
+
+  test_circuit:extend(require"blue.tests.tor_node_infos"["gabelmoo"])
+
+  print("DONE")
+
+  --[[
+
+
+
+
   local rfc
   local function read_created2_cell(cmd, CircID, data)
     assert(cmd == 11)
@@ -146,34 +255,9 @@ function tor.create(args)
             data)])
     error("Destroy")
   end
-  local function read_netinfo_cell(cmd, CircID, data)
-    assert(cmd == 8)
-    local time = struct.unpack(">I", data)
-    data = read_addr(data:sub(5))
-    local my_addr_cnt = struct.unpack(">B", data)
-    data = data:sub(2)
-    for i = 1, my_addr_cnt do
-      data = read_addr(data)
-    end
-  end
 
-  read_certs_cell(read_cell())
-  read_challenge_cell(read_cell())
-  read_netinfo_cell(read_cell())
-
-  local function rfc5869(key, salt, info)
-    local k = {hmac(info .. string.char(1), key)}
-    for i = 2, 100 do
-      k[i] = hmac(k[i - 1] .. info .. string.char(i), key)
-    end
-    return table.concat(k)
-  end
 
   local key_forward
-
-  -- local _,a=create_ntor()
-  -- a()
-  -- os.exit()
 
   local function send_create_cell()
     local ud
@@ -214,6 +298,6 @@ function tor.create(args)
 
   print("RECV", read_cell())
   print("RECV", read_cell())
-  print("RECV", read_cell())
+  print("RECV", read_cell())]]
 end
 return tor

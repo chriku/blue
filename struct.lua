@@ -38,6 +38,9 @@ function struct.pack(format, ...)
 
       local bytes = {}
       for j = 1, n do
+        if not val then
+          error("Invalid Value", 2)
+        end
         table.insert(bytes, string.char(val % (2 ^ 8)))
         val = math.floor(val / (2 ^ 8))
       end

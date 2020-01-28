@@ -30,13 +30,16 @@ function aes.new(key)
     return ffi.string(out, outlen[0])
   end
   function stream.close()
-    print("CLOSE 1")
     local out = ffi.new("unsigned char[1024]")
     local outlen = ffi.new("int[1]", 1024)
     assert(lib.EVP_EncryptFinal_ex(ctx, out, outlen) == 1)
-    print("CLOSE 2")
     return ffi.string(out, outlen[0])
   end
   return stream
+end
+function aes.encrypt(key,data)
+  local stream=aes.new(key)
+  local ret=stream.encrypt(data)
+  return ret..stream.close()
 end
 return aes

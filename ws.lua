@@ -15,13 +15,14 @@
 -- You should have received a copy of the GNU Lesser General Public License
 -- along with the Blue-Scheduler. If not, see <http://www.gnu.org/licenses/>.
 local sha1 = require "blue.sha1"
+local base64 = require "blue.base64"
 local scheduler = require "blue.scheduler"
 return function(pfunc, request, headers)
   local struct = require "blue.struct"
   local raw = false
   local ws = {}
   local swk = request["X-sec-websocket-key"]
-  local swa = sha1(swk .. "258EAFA5-E914-47DA-95CA-C5AB0DC85B11")
+  local swa = base64.encode(sha1.binary(swk .. "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"))
   headers.upgrade = "websocket"
   headers.connection = "upgrade"
   headers["Sec-WebSocket-Accept"] = swa

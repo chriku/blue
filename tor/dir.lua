@@ -2,6 +2,7 @@
 require "blue.util"
 local dir = {}
 local base64 = require "blue.base64"
+local hex = require "blue.hex"
 local function read_dir(str)
   local lines = {}
   local items = {}
@@ -77,6 +78,12 @@ local function parse_router(items)
       assert(#items["ntor-onion-key"] == 1)
       assert(items["ntor-onion-key"][1].data)
       router.ntor_onion_key = base64.decode(items["ntor-onion-key"][1].data)
+    end
+  end)
+  table.insert(readers, function()
+    if items["fingerprint"] then
+      assert(#items["fingerprint"] == 1)
+      router.fingerprint = hex.decode(assert(items["fingerprint"][1].data))
     end
   end)
   for _, reader in ipairs(readers) do

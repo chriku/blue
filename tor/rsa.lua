@@ -1,6 +1,5 @@
 local ffi = require "ffi"
-require "blue.sha1"
-local sha1 = require "blue.sha1_raw"
+local sha1 = require "blue.sha1"
 ffi.cdef [[
 typedef struct X509 {} X509;
 typedef struct EVP_PKEY {} EVP_PKEY;

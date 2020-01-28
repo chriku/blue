@@ -23,7 +23,11 @@ local function unhex(a)
   return ret
 end
 function curve.gen_key()
-  local key = string.rep(string.char(10), 32)
+  math.randomseed(os.time())
+  local key = ""
+  while key:len() < 32 do
+    key = key .. string.char(math.random(0, 255))
+  end
   local k0 = string.byte(key, 1)
   local k31 = string.byte(key, 32)
   key = string.char(bit.band(k0, 248)) .. key:sub(2, 31) .. string.char(bit.bor(64, bit.band(127, k31)))
@@ -33,7 +37,7 @@ function curve.gen_key()
   return pubkey, key
 end
 function curve.handshake(skey, pkey)
-  print(skey:len(), pkey:len())
+  -- print(skey:len(), pkey:len())
   assert(skey:len() == 32)
   assert(pkey:len() == 32)
   return impl(skey, pkey)
