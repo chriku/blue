@@ -1,0 +1,3 @@
+[submodule "LuaFormatter"]
+	path = LuaFormatter
+	url = https://github.com/Koihik/LuaFormatter.git
