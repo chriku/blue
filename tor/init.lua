@@ -50,6 +50,7 @@ local sha1 = require "blue.sha1_raw"
 local rsa = require "blue.tor.rsa"
 local hmac = require "blue.tor.hmac"
 local aes = require "blue.tor.aes"
+local ed25519 = require "blue.tor.ed25519"
 function tor.create(args)
   assert(args.first_relay)
   assert(args.first_relay.ip)
@@ -57,9 +58,7 @@ function tor.create(args)
   local socket_provider = ssl.create()
   print("CONN TO", args.first_relay.ip, args.first_relay.port)
   local conn = socket_provider.connect(args.first_relay.ip, args.first_relay.port)
-  print("Connected")
   assert(conn:send(struct.pack(">HB HH", 0, 7, 2, 3)))
-  print("Sent")
   local function send_cell()
   end
   local function read_version_cell()
@@ -87,7 +86,6 @@ function tor.create(args)
 
   local function ensure_buf(len)
     while buf:len() < len do
-      print("REQUIRING", buf:len(), "of", len)
       buf = buf .. assert(conn:receive())
     end
   end
@@ -105,7 +103,6 @@ function tor.create(args)
     ensure_buf(start + len - 1)
     local data = buf:sub(start, start + len - 1)
     buf = buf:sub(start + len)
-    print("READ CELL", cmd)
     return cmd, CircID, data
   end
   local certs = {}
@@ -164,22 +161,6 @@ function tor.create(args)
   read_challenge_cell(read_cell())
   read_netinfo_cell(read_cell())
 
-  local function parse_ed25519(str)
-    print(enc(str))
-    local version, type, exp, cert_key_type, certified_key, n_extensions = struct.unpack(">BBIBc32B", str)
-    assert(version == 1, "Invalid Version")
-    assert(cert_key_type == 1, "Invalid Type")
-    print("ED TYPE", type)
-    --[[str=str:sub(41)
-    for i=1,n_extensions do
-      local len,type,flags=struct.unpack(">HBB",str)
-      str=str:sub(5)
-      str=str:sub(len+1)
-    end
-    local signature=str]]
-    return certified_key
-  end
-
   local function rfc5869(key, salt, info)
     local k = {hmac(info .. string.char(1), key)}
     for i = 2, 100 do
@@ -190,33 +171,6 @@ function tor.create(args)
 
   local key_forward
 
-  local function create_ntor()
-    local dig = rsa.load_cert(certs[2]):digest()
-    local X, x = curve.gen_key()
-    -- local B=parse_ed25519(certs[4])
-    -- local B=parse_ed25519(certs[5])
-    local B = require"base64".decode("A9OYkoVFLF4G/Jwd+5gJ6hyaaw+/8aR47K6X8Sojo2E=") -- TODO!!!
-    local ID = dig:sub(1, 20)
-    local ret = struct.pack(">c20c32c32", dig:sub(1, 20), B, X)
-    return ret, function(hdata)
-      local Y = hdata:sub(1, 32)
-      local auth = hdata:sub(33):sub(1, 32)
-      local PROTOID = "ntor-curve25519-sha256-1"
-      local secret_input = curve.handshake(x, Y) .. curve.handshake(x, B) .. ID .. B .. X .. Y .. PROTOID
-      local seed = hmac(secret_input, PROTOID .. ":key_extract")
-      local verify = hmac(secret_input, PROTOID .. ":verify")
-      local auth_input = verify .. ID .. B .. Y .. X .. PROTOID .. "Server"
-      local auth_v = hmac(auth_input, PROTOID .. ":mac")
-      assert(auth_v == auth, "Invalid hash")
-      local long_key = rfc5869(secret_input, PROTOID .. ":key_extract", PROTOID .. ":key_expand")
-      local Df = long_key:sub(1, 20)
-      local Db = long_key:sub(21, 40)
-      local Kf = long_key:sub(41, 56)
-      local Kb = long_key:sub(57, 72)
-      local KH = long_key:sub(73, 72 + 32)
-      key_forward = Kf
-    end
-  end
   -- local _,a=create_ntor()
   -- a()
   -- os.exit()
