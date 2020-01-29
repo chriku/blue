@@ -124,6 +124,7 @@ return function(circuit, first_node_info)
     start_receiver()
     local provider = {}
     local function do_buildup(circuit)
+      local socket = {}
       local cmd, data = circuit:read()
       if cmd ~= 4 then
         print("ERROR", string.byte(data))
