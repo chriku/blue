@@ -5,6 +5,7 @@ local aes = require "blue.tor.aes"
 local tor_sha1 = require "blue.tor.sha1"
 local scheduler = require "blue.scheduler"
 return function(circuit, first_node_info)
+  local control
   local first_node = {router = dir.parse_to_router(first_node_info)}
   local path = {}
   local nodes = {first_node}
@@ -32,6 +33,8 @@ return function(circuit, first_node_info)
       circuit:send_cell("relay", relay_content)
     end
   end
+
+  local cnt = 1000
   local function read_relay_cell(cmd, data)
     assert(cmd == "relay")
     for i = 1, 10 do
@@ -42,6 +45,11 @@ return function(circuit, first_node_info)
         relay_content_hash = data:sub(1, 5) .. "\0\0\0\0" .. data:sub(10)
         assert(digest == node.hash_backward(relay_content_hash):sub(1, 4), "Inv data")
         data = data:sub(12, 12 - 1 + length)
+        cnt = cnt - 1
+        if cnt < 900 then
+          control:send(5, struct.pack(">BH", 0, 0))
+          cnt = cnt + 100
+        end
         return stream_id, cmd, data
       end
     end
@@ -105,7 +113,7 @@ return function(circuit, first_node_info)
     end
     return sub_circuit
   end
-  local control = register_circuit(0)
+  control = register_circuit(0)
   scheduler.addthread(function()
     while true do
       local c, d = control:read()
@@ -115,11 +123,7 @@ return function(circuit, first_node_info)
   function path:provider()
     start_receiver()
     local provider = {}
-    function provider.connect(host, port)
-      local socket = {}
-      local circuit = register_circuit()
-      local addr = host .. ":" .. port
-      circuit:send(1, struct.pack(">sI", addr .. "\0", 0))
+    local function do_buildup(circuit)
       local cmd, data = circuit:read()
       if cmd ~= 4 then
         print("ERROR", string.byte(data))
@@ -138,8 +142,14 @@ return function(circuit, first_node_info)
         circuit:close()
         return data
       end
+      local cnt = 490 -- 500
       function socket:receive(data)
         local cmd, data = circuit:read()
+        cnt = cnt - 1
+        if cnt < 450 then
+          circuit:send(5, struct.pack(">BH", 0, 0))
+          cnt = cnt + 50
+        end
         if cmd == 2 then
           return data
         elseif cmd == 3 then
@@ -149,7 +159,20 @@ return function(circuit, first_node_info)
           return ""
         end
       end
-      return socket
+      return require "blue.socket_wrapper"(socket)
+    end
+    function provider.connect(host, port)
+      local socket = {}
+      local circuit = register_circuit()
+      local addr = host .. ":" .. port
+      circuit:send(1, struct.pack(">sI", addr .. "\0", 0))
+      return do_buildup(circuit)
+    end
+    function provider.connect_dir()
+      local socket = {}
+      local circuit = register_circuit()
+      circuit:send(13, "")
+      return do_buildup(circuit)
     end
     --[[
     assert(cmd == 4)

@@ -35,8 +35,7 @@ Secret Input F5 7B 1C 69 7F F8 D1 42 5D 2D 45 B2 13 37 9A 09 9F 37 68 95 39 BA 0
 Verify B6 9A 2F DE 28 48 94 35 2B 8D CB B0 7A 1A C6 01 34 43 FE 40 EA 65 D0 7D 0B A6 27 39 6A 9A 23 DF
 Auth Input B6 9A 2F DE 28 48 94 35 2B 8D CB B0 7A 1A C6 01 34 43 FE 40 EA 65 D0 7D 0B A6 27 39 6A 9A 23 DF 53 02 77 86 64 66 A1 42 5F 43 A7 3D BF CB 5F C7 41 0C 98 52 5E 89 5D 65 30 4A 3A 18 94 61 66 60 14 3F 7A F5 75 7F E0 8B C1 80 45 C7 85 5E E8 DE BB 9E 6C 47 75 C9 A4 7B 6A C0 6C 9F E4 59 3E 55 98 60 09 EF 7D DF AF 91 0C 9B 25 E0 57 C2 DE 0E 41 31 11 06 9B C7 81 30 79 F1 57 E3 1B D2 D0 FE 1E 47 1F 4C 15 F2 27 8D 1A 26 04 B2 0B A9 C7 76 80 A9 C7 31 6E 74 6F 72 2D 63 75 72 76 65 32 35 35 31 39 2D 73 68 61 32 35 36 2D 31 53 65 72 76 65 72
 Auth 13 1F D5 95 56 7B 34 47 BE 23 BD 3F ED 9F 33 7E 2F E6 CD 15 01 72 93 B2 42 D7 EE 26 AB 03 F6 2D 00 00 D0 09 DA A1 04 56 00 00 00 3D 6D 94 B2 FD A7 3B 68 7C 1E A2 04 56 00 00 68 7C 1E A2 04 56 00 00 A6 B6 EA EA FC 7F 00 00 48 00 00 00 00 00 00 00 10 B6 EA EA FC 7F 00 00 80 7C 1E A2 04 56 00 00 90 A8 1A A2 04 56 00 00 BD 01 CA A0 04 56 00 00 5C 00 00 00 00 00 00 00 08 B6 EA EA FC 7F 00 00 00 00 00 00 00 00 00 00 00 3D 6D 94 B2 FD A7 3B 00 00 00 00 00 00 00 00 A2 B6 EA EA FC 7F 00 00 60 7C 1E A2 04 56 00 00 D0 09 DA A1 04 56 00 00
-]] require "tor.dir"
-local tor = {}
+]] local tor = {}
 local PAYLOAD_LEN = 509
 local PK_PAD_LEN = 42
 local PK_ENC_LEN = 128
@@ -54,6 +53,8 @@ local util = require "blue.util"
 local scheduler = require "blue.scheduler"
 local create_path = require "blue.tor.path"
 local matrix = require "blue.matrix.init"
+local http_client = require "blue.http_client"
+local dir = require "tor.dir"
 local tor_cmds = {}
 do
   local function add_cmd(id, name)
@@ -241,11 +242,32 @@ function tor.create(args)
 
   local test_circuit = create_path(register_circuit(1), require"blue.tests.tor_node_infos"["moria1"])
 
-  test_circuit:extend(require"blue.tests.tor_node_infos"["gabelmoo"])
-  test_circuit:extend(require"blue.tests.tor_node_infos"["dannenberg"])
-  test_circuit:extend(require"blue.tests.tor_node_infos"["BexleyRecipes"])
+  -- test_circuit:extend(require"blue.tests.tor_node_infos"["gabelmoo"])
+  -- test_circuit:extend(require"blue.tests.tor_node_infos"["dannenberg"])
+  -- test_circuit:extend(require"blue.tests.tor_node_infos"["BexleyRecipes"])
   -- test_circuit:extend(require"blue.tests.tor_node_infos"["ExitNinja"])
+  local dir_circuit = create_path(register_circuit(2), require"blue.tests.tor_node_infos"["moria1"])
+  local dir_provider = require "blue.socket_wrapper"({connect = dir_circuit:provider().connect_dir})
+  local e, consensus_data = http_client.request("http://node/tor/status-vote/current/consensus", nil, nil, dir_provider)
+  consensus = dir.parse_consensus(consensus_data)
+  local nodes = {}
+  for i = 1, 3 do
+    table.insert(nodes, consensus.relays[math.random(1, #consensus.relays)])
+  end
+  table.insert(nodes, consensus.exits[math.random(1, #consensus.exits)])
+  for i = 1, #nodes do
+    local node = nodes[i]
+    local _, h
+    _, nodes[i], h = http_client.request("http://node/tor/server/d/" .. require"blue.hex".encode(node.digest):gsub(" ", ""), nil, nil, dir_provider)
+  end
+  for i = 1, #nodes do
+    test_circuit:extend(nodes[i])
+  end
   local provider = test_circuit:provider()
+  print(http_client.request("https://google.com/", nil, nil, provider))
+  print("EXTENDED")
+
+  --[[  local provider = test_circuit:provider()
   local conn = matrix.connect("", "", "", provider)
   function conn.on_invite(room)
     print("JOINING", room.name)
@@ -273,7 +295,7 @@ function tor.create(args)
     end
   end
   conn:start()
-  print("DONE")
+  print("DONE")]]
 
   --[[
 

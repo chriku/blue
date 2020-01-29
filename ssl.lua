@@ -77,7 +77,7 @@ function ssl.create(socket_provider)
     local send_mutex = mutex()
 
     local web, o = ffi.new("BIO*[1]"), ffi.new("BIO*[1]")
-    local buffer_size = 16384
+    local buffer_size = 16384 * 32
     lib.BIO_new_bio_pair(web, buffer_size, o, buffer_size)
     web, o = web[0], ffi.gc(o[0], lib.BIO_free)
     if web == nil then
@@ -113,7 +113,7 @@ function ssl.create(socket_provider)
         local data = rec_buf:sub(1, allowed)
         rec_buf = rec_buf:sub(allowed + 1)
         if rec_buf:len() > 0 then
-          -- error("TMI")
+          print("TMI")
         end
         lib.BIO_write(o, data, data:len())
         if allowed > 0 then
@@ -125,7 +125,7 @@ function ssl.create(socket_provider)
     end
     scheduler.addthread(function()
       while true do
-        local data = rem_socket:receive()
+        local data, e = rem_socket:receive(1)
         if data then
           rec_buf = rec_buf .. data
         else
@@ -133,6 +133,12 @@ function ssl.create(socket_provider)
           lib.BIO_ctrl(o, 142, 0, nil)
           break
         end
+        flush()
+      end
+    end)
+    scheduler.addthread(function()
+      while true do
+        scheduler.sleep(0.1)
         flush()
       end
     end)

@@ -1,4 +1,5 @@
 local scheduler = require "blue.scheduler"
+require "blue.util"
 local http = {}
 function http.request(url, data, req, socket_provider)
   req = req or {}
@@ -77,7 +78,7 @@ function http.request(url, data, req, socket_provider)
     end
   until line == ""
   local content = ""
-  local len = tonumber(headers["content-length"] or "0")
+  local len = tonumber(headers["content-length"])
   if headers["transfer-encoding"] == "chunked" then
     -- error("TODO: Catch errors")
     repeat
@@ -99,11 +100,21 @@ function http.request(url, data, req, socket_provider)
       end
       content = content .. c
     until headers["transfer-encoding"] ~= "chunked" or len == 0
-  else
+  elseif len then
     content = buf
     while content:len() < len do
       -- print(content)
       content = content .. assert(conn:receive())
+    end
+  else
+    content = buf
+    while true do
+      -- print(content)
+      local d = conn:receive()
+      if not d then
+        break
+      end
+      content = content .. d
     end
   end
   if conn then

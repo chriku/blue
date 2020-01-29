@@ -27,16 +27,18 @@ local function read_dir(str)
       assert(keyword_single ~= "-----BEGIN")
       local key = keyword_single
       items[key] = items[key] or {}
-      local item = {}
+      local item = {key = key}
       last_item = item
       table.insert(items[key], item)
+      table.insert(items, item)
     elseif keyword_multi and not in_block then
       assert(keyword_multi ~= "-----BEGIN")
       local key = keyword_multi
       items[key] = items[key] or {}
-      local item = {data = args}
+      local item = {data = args, key = key}
       last_item = item
       table.insert(items[key], item)
+      table.insert(items, item)
     elseif in_block then
       block_data = block_data .. line
     end
@@ -94,7 +96,46 @@ end
 function dir.parse_to_router(doc)
   return parse_router(read_dir(doc))
 end
+function dir.parse_consensus(data)
+  local consensus = read_dir(data)
+  local relay = {}
+  local relays = {}
+  local network = {relays = relays, exits = {}}
+  for _, pair in ipairs(consensus) do
+    if pair.key == "r" then
+      relay = {}
+      table.insert(relays, relay)
+      local name, identity, digest, publication, ip, orport, dirport = pair.data:match(
+                                                                           "^([^ \n\t]*)[ \n\t]*([^ \n\t]*)[ \n\t]*([^ \n\t]*)[ \n\t]*([^ \n\t]*)[ \n\t]*([^ \n\t]*)[ \n\t]*([^ \n\t]*)[ \n\t]*([^ \n\t]*)[ \n\t]*")
+      relay.name = name
+      relay.identity = assert(require"blue.base64".decode(identity))
+      relay.digest = assert(require"blue.base64".decode(digest))
+      -- print(require"blue.hex".encode(relay.digest):gsub(" ",""))
+      relay.ip = ip
+      relay.orport = tonumber(orport)
+      relay.dirport = tonumber(dirport)
+    end
+    if pair.key == "s" then
+      for flag in pair.data:gmatch("[^ \n\t]*") do
+        if flag == "Exit" then
+          relay.exit = true
+        end
+      end
+    end
+  end
+  for _, relay in ipairs(relays) do
+    if relay.exit then
+      table.insert(network.exits, relay)
+    end
+  end
+  return network
+end
 return dir
+-- decode(
+-- dir.parse_consensus(io.open("consensus"):read("*a"))
+-- )
+-- os.exit(0)
+-- return dir
 --[==[decode(parse_router(read_dir[[router moria1 128.31.0.34 9101 0 9131
 identity-ed25519
 -----BEGIN ED25519 CERT-----
