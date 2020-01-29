@@ -53,6 +53,8 @@ local ed25519 = require "blue.tor.ed25519"
 local util = require "blue.util"
 local scheduler = require "blue.scheduler"
 local create_path = require "blue.tor.path"
+local ssh=require"blue.ssh"
+local http_client=require"blue.http_client"
 local tor_cmds = {}
 do
   local function add_cmd(id, name)
@@ -214,7 +216,7 @@ function tor.create(args)
       if circuits[CircID] then
         circuits[CircID](cmd, data)
       else
-        print("Package for unregistered circuit", CircID)
+        print("Package for unregistered circuit", CircID,cmd)
       end
     end
   end)
@@ -234,8 +236,11 @@ function tor.create(args)
 
   test_circuit:extend(require"blue.tests.tor_node_infos"["gabelmoo"])
   test_circuit:extend(require"blue.tests.tor_node_infos"["dannenberg"])
-  test_circuit:extend(require"blue.tests.tor_node_infos"["ExitNinja"])
-  test_circuit:test()
+  test_circuit:extend(require"blue.tests.tor_node_infos"["BexleyRecipes"])
+  --test_circuit:extend(require"blue.tests.tor_node_infos"["ExitNinja"])
+  local provider=test_circuit:provider()
+  local ssh_provider=ssh.connect("78.42.208.205",2222,"root",provider)
+  print("WEGGER",http_client.request("http://wegger/",nil,nil,ssh_provider))
 
   print("DONE")
 

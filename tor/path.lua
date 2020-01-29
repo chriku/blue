@@ -2,9 +2,10 @@ local dir = require "blue.tor.dir"
 local ntor = require "blue.tor.ntor"
 local struct = require "blue.struct"
 local aes = require "blue.tor.aes"
-local sha1 = require "blue.sha1"
+local tor_sha1 = require "blue.tor.sha1"
+local scheduler=require"blue.scheduler"
 return function(circuit, first_node_info)
-  local first_node = {router = dir.parse_to_router(first_node_info), prev_data = ""}
+  local first_node = {router = dir.parse_to_router(first_node_info)}
   local path = {}
   local nodes = {first_node}
   do
@@ -20,10 +21,8 @@ return function(circuit, first_node_info)
     while relay_content_hash:len() < 509 do
       relay_content_hash = relay_content_hash .. string.char(math.random(0, 255))
     end
-    print("PREV", idx, node.prev_data:len())
-    local digest = sha1.binary(node.digest_forward .. node.prev_data .. relay_content_hash):sub(1, 4)
+    local digest = node.hash_forward(relay_content_hash):sub(1, 4)
     relay_content = relay_content_hash:sub(1, 5) .. digest .. relay_content_hash:sub(10)
-    node.prev_data = node.prev_data .. relay_content_hash
     for i = idx, 1, -1 do
       relay_content = nodes[i].aes_forward(relay_content)
     end
@@ -37,17 +36,20 @@ return function(circuit, first_node_info)
     assert(cmd == "relay")
     for i = 1, 10 do
       data = nodes[i].aes_backward(data)
-      local cmd, recognized, stream_id, digest, length = struct.unpack(">BHHIH", data)
+      local cmd, recognized, stream_id, digest, length = struct.unpack(">BHHc4H", data)
       if recognized == 0 then
+        local node=nodes[i]
+        relay_content_hash = data:sub(1, 5) .. "\0\0\0\0" .. data:sub(10)
+        assert(digest==node.hash_backward(relay_content_hash):sub(1,4),"Inv data")
         data = data:sub(12, 12 - 1 + length)
-        return cmd, data
+        return stream_id,cmd, data
       end
     end
     error("Invalid packet")
   end
   function path:extend(node_info)
     math.randomseed(os.time() * math.random())
-    local new_node = {router = dir.parse_to_router(node_info), prev_data = ""}
+    local new_node = {router = dir.parse_to_router(node_info)}
     local ip1, ip2, ip3, ip4 = assert(new_node.router.address):match("^([0-9]+)%.([0-9]+)%.([0-9]+)%.([0-9]+)$")
     ip1 = assert(tonumber(ip1))
     ip2 = assert(tonumber(ip2))
@@ -56,23 +58,107 @@ return function(circuit, first_node_info)
     local handshake_data, handshake_cb = ntor(new_node)
     local extend_content = struct.pack(">B BB BBBB H", 2, 0, 6, ip1, ip2, ip3, ip4, assert(new_node.router.orport)) .. struct.pack(">BBc20", 2, 20, new_node.router.fingerprint) .. handshake_data
     send_to_node(#nodes, 14, 0, extend_content, true)
-    local cmd, hdata = read_relay_cell(circuit:read_cell())
-    print("CMD", cmd, string.byte(hdata))
+    local sid,cmd, hdata = read_relay_cell(circuit:read_cell())
     assert(cmd == 15)
     handshake_cb(hdata)
     table.insert(nodes, new_node)
   end
-  function path:test()
-    send_to_node(#nodes, 1, 1, struct.pack(">sI", "google.de:80\0", 0))
-    local cmd, hdata = read_relay_cell(circuit:read_cell())
+  local sub_buffer={}
+  local receive_running=false
+  local function start_receiver()
+    assert(not receive_running)
+    receive_running=true
+    scheduler.addthread(function()
+      while true do
+        local stream_id,cmd,data=read_relay_cell(circuit:read_cell())
+print("RECV",stream_id,cmd)
+        if sub_buffer[stream_id] then
+          table.insert(sub_buffer[stream_id],{cmd=cmd,data=data})
+        else
+          print("Relay for unknown stream id",stream_id,cmd)
+        end
+      end
+    end)
+  end
+  local function register_circuit(id)
+    id=id or math.random(1,65535)
+    while sub_buffer[id] do
+      id=(id+1)%65536
+      if id==0 then id=1 end
+    end
+    local sub_buf={}
+    sub_buffer[id]=sub_buf
+    local sub_circuit={}
+    function sub_circuit:send(cmd,data)
+      send_to_node(#nodes, cmd, id, data)
+    end
+    function sub_circuit:close()
+      sub_buffer[id]=nil
+    end
+    function sub_circuit:read(cmd,data)
+      while #sub_buf<1 do
+        scheduler.sleep(0.1)--TODO
+      end
+      local item=table.remove(sub_buf,1)
+      return item.cmd,item.data
+    end
+    return sub_circuit
+  end
+  local control=register_circuit(0)
+scheduler.addthread(function()
+while true do
+local c,d=control:read()
+print("CONTROL",c,string.byte(d))
+end
+end)
+  function path:provider()
+    start_receiver()
+    local provider={}
+    function provider.connect(host,port)
+      local socket={}
+      local circuit=register_circuit()
+      local addr=host..":"..port
+      circuit:send(1,struct.pack(">sI", addr.."\0", 0))
+      local cmd,data=circuit:read()
+      if cmd~=4 then
+        print("ERROR",string.byte(data))
+        return nil,"tor error"
+      end
+      function socket:send(data)
+        while data:len()>450 do
+          circuit:send(2,data:sub(1,450))
+          data=data:sub(451)
+        end
+        circuit:send(2,data)
+        return data
+      end
+      function socket:close(data)
+        circuit:send(3,string.char(6))
+        circuit:close()
+        return data
+      end
+      function socket:receive(data)
+        local cmd,data=circuit:read()
+        if cmd==2 then
+          return data
+        elseif cmd==3 then
+          return nil,"closed"
+        else
+          print("Unknown Relay CMD",cmd)
+          return ""
+        end
+      end
+      return socket
+    end
+    --[[
     assert(cmd == 4)
-    send_to_node(#nodes, 2, 1, "GET / HTTP/1.1\r\nHost: google.de\r\n\r\n")
     while true do
       local cmd, hdata = read_relay_cell(circuit:read_cell())
       if cmd == 2 then
         print("READ", hdata)
       end
-    end
+    end]]
+    return provider
   end
   return path
 end

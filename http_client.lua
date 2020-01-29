@@ -22,6 +22,7 @@ function http.request(url, data, req, socket_provider)
   end
   conn:send(method .. " " .. npage .. " HTTP/1.1\r\n")
   req["connection"] = "close"
+  req["connection"] = "keep-alive"
   req["host"] = host
   for k, v in pairs(req) do
     if k:find("^[a-zA-Z]") then
@@ -87,7 +88,7 @@ function http.request(url, data, req, socket_provider)
         local c = ""
         local l = getline()
         len = tonumber(l, 16)
-        print("LEN", len, l)
+        --print("LEN", len, l)
         -- headers["transfer-encoding"]=nil
         while c:len() < len do
           c = c .. buf:sub(1, 1)

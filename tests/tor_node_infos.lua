@@ -242,7 +242,94 @@ XRN1BfnPiM6E5KmCfEIon9saEdP6J/AwfQGcANsLMns=
 -----END SIGNATURE-----
 
 ]==]
-infos[""] = [==[]==]
+infos["BexleyRecipes"] = --http://18.27.197.252:9030/tor/server/authority
+[==[router BexleyRecipes 18.27.197.252 9001 0 9030
+identity-ed25519
+-----BEGIN ED25519 CERT-----
+AQQABrVNAXQaxfThiBUv51jWjgeM8xPFmxThoHQTN+yagwPOz7VeAQAgBAAcwJeS
+9HCmlQLZhPbJl2oUH4H6YHKuBjJ7JxyKo9knMRP/BxhFJsmSHqquTANaEvGyI7ti
+zznQRuZf/6Io/TIwiIh3uORc6193ImGwuhs20Brvc8mdZGv+5rz/UGKpWAY=
+-----END ED25519 CERT-----
+master-key-ed25519 HMCXkvRwppUC2YT2yZdqFB+B+mByrgYyeycciqPZJzE
+platform Tor 0.4.2.5 on Linux
+proto Cons=1-2 Desc=1-2 DirCache=1-2 HSDir=1-2 HSIntro=3-5 HSRend=1-2 Link=1-5 LinkAuth=1,3 Microdesc=1-2 Relay=1-2 Padding=2 FlowCtrl=1
+published 2020-01-28 19:22:03
+fingerprint 928C 4709 E663 B0FF 152F D1F1 CBDD 6AAF A3B5 48D9
+uptime 1822048
+bandwidth 128000000 128000000 52566875
+extra-info-digest 993A3A762253546143B0562E8CD384F0502BB9A9 BMb+AHYRZk36MLbl8wH3U2yY8u6Y6xTZnS/L7nl1KW4
+onion-key
+-----BEGIN RSA PUBLIC KEY-----
+MIGJAoGBAML3bbD1d7dmoHwVTgFRhgb2Ro14Ysw5t/0R2P60a/bRN2n4dHA72/9D
+1BK1WktfCvQZNa+QFa/zDGBnwwHiP563X2GRW9h1DXemR8/uyNOtblzzJ6xxK6l+
+IseeL0Q5bFRSV9CYw8uzWrF3lKLEyC5a6ZUGxoGYdK5zQS96FZspAgMBAAE=
+-----END RSA PUBLIC KEY-----
+signing-key
+-----BEGIN RSA PUBLIC KEY-----
+MIGJAoGBANGzQlx6HQ7vdgMbniboBbcum5OvzSupROWRy4LU70wdH66628Kw/tNu
+hzaHYtkWNXZko2yNJytWqfXATtKOqdIP5RN89iyJ3wG0ZnJcjYNllo3dy21Iwu+2
+9UoMID57U7E8pgJe0lmXd0qfsWXk7hT4w/tepoyXofnQG0RhjWuZAgMBAAE=
+-----END RSA PUBLIC KEY-----
+onion-key-crosscert
+-----BEGIN CROSSCERT-----
+a24U6Kec2AX2Ca8w0gt3/gAJfCPZsH8U2pOhFwPg7TaZaa/SO6x1VyfN/JoF2VZy
+C9E4nrEZrNMryI+J7li3zBi239v+ZBWG72UOvYJVdDYMEcdYPmX969891+W3FvI3
+p6lWm+B4mmIx+LbVGm9Ea7xE+hRyiKbnk1VCrUc0aQw=
+-----END CROSSCERT-----
+ntor-onion-key-crosscert 0
+-----BEGIN ED25519 CERT-----
+AQoABrVMARzAl5L0cKaVAtmE9smXahQfgfpgcq4GMnsnHIqj2ScxAOkECcZOgUjg
+IfeyuTuHyorDXovtQJpyv0IPArwdxL7P1pt2AaKcMSz17afco3Oa0TE9b9PUPAHk
+uzTFmMf/sQs=
+-----END ED25519 CERT-----
+family $8370FC4C190D0020FA594D8232DFE34B5B30AF05 $928C4709E663B0FF152FD1F1CBDD6AAFA3B548D9
+hidden-service-dir
+contact recipe-acl@mit.edu
+ntor-onion-key xPxZqSwoTVKodkkDGnJelU+Ky7XQJV2Lh+lQkfUEqGU=
+reject 0.0.0.0/8:*
+reject 169.254.0.0/16:*
+reject 127.0.0.0/8:*
+reject 192.168.0.0/16:*
+reject 10.0.0.0/8:*
+reject 172.16.0.0/12:*
+reject 4.21.160.8/29:*
+reject 18.0.0.0/11:*
+reject 128.30.0.0/15:*
+reject 128.52.0.0/16:*
+reject 128.128.0.0/16:*
+reject 129.55.0.0/16:*
+reject 192.12.11.0/24:*
+reject 192.52.61.0/24:*
+reject 192.52.62.0/24:*
+reject 192.52.63.0/24:*
+reject 192.52.64.0/24:*
+reject 192.52.65.0/24:*
+reject 192.52.66.0/24:*
+reject 192.54.222.0/24:*
+reject 192.233.95.0/24:*
+reject 198.125.160.0/22:*
+reject 198.125.176.0/20:*
+reject *:25
+reject *:119
+reject *:135-139
+reject *:445
+reject *:563
+reject *:1214
+reject *:4661-4666
+reject *:6346-6429
+reject *:6699
+reject *:6881-6999
+accept *:*
+tunnelled-dir-server
+router-sig-ed25519 sWhMPyoQqeN6EgA3OREr+Q2wh5M+3oN8dZ+gRFpaw1tEA61d0GbB0QcJVy2LeTveBQIJ0jY759ae3DdvtuhhDg
+router-signature
+-----BEGIN SIGNATURE-----
+WUTluYOuAXvFkKOme5feQVEwkph/cAqT0frTyYGX2ikW6VP8b8AZWF5zzR1yQQzv
+oftYg+6WH7CqGxUfBOOaTxZq8nOEZcp1TOHDBM8KNSALG9uQcrYLScnfqtDm6trz
+iGlhj6covEAL+FvByVewlBckvxMy93NPAbFtpCC56AM=
+-----END SIGNATURE-----
+
+]==]
 infos[""] = [==[]==]
 infos[""] = [==[]==]
 return infos
