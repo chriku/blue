@@ -15,7 +15,7 @@
 -- You should have received a copy of the GNU Lesser General Public License
 -- along with the Blue-Scheduler. If not, see <http://www.gnu.org/licenses/>.
 local json = require "blue.matrix.json"
-return function(base_host)
+return function(base_host, socket_provider)
   local do_request = {}
   local header = {}
   function do_request.get(rest, info, put)
@@ -33,7 +33,7 @@ return function(base_host)
     for k, v in pairs(header) do
       head[k] = v
     end
-    local code, ret = http_client.request(base_host .. rest, data, head)
+    local code, ret = http_client.request(base_host .. rest, data, head, socket_provider)
     local ret2 = json.decode(ret)
     if not ret2 then
       print(base_host .. rest)

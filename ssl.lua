@@ -113,7 +113,7 @@ function ssl.create(socket_provider)
         local data = rec_buf:sub(1, allowed)
         rec_buf = rec_buf:sub(allowed + 1)
         if rec_buf:len() > 0 then
-          --error("TMI")
+          -- error("TMI")
         end
         lib.BIO_write(o, data, data:len())
         if allowed > 0 then

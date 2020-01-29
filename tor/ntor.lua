@@ -5,7 +5,7 @@ local hmac = require "blue.tor.hmac"
 local aes = require "blue.tor.aes"
 local rfc5869 = require "blue.tor.rfc5869"
 local base64 = require "blue.base64"
-local tor_sha1=require"blue.tor.sha1"
+local tor_sha1 = require "blue.tor.sha1"
 local HANDSHAKE_TYPE_NTOR = 2
 return function(node)
   local X, x = curve.gen_key()
@@ -24,8 +24,8 @@ return function(node)
     local auth_v = hmac(auth_input, PROTOID .. ":mac")
     assert(auth_v == auth, "Invalid hash")
     local long_key = rfc5869(secret_input, PROTOID .. ":key_extract", PROTOID .. ":key_expand")
-    node.hash_forward=tor_sha1()
-    node.hash_backward=tor_sha1()
+    node.hash_forward = tor_sha1()
+    node.hash_backward = tor_sha1()
     node.digest_forward = long_key:sub(1, 20)
     node.digest_backward = long_key:sub(21, 40)
     node.hash_forward(node.digest_forward)

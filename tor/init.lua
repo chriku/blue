@@ -53,8 +53,7 @@ local ed25519 = require "blue.tor.ed25519"
 local util = require "blue.util"
 local scheduler = require "blue.scheduler"
 local create_path = require "blue.tor.path"
-local ssh=require"blue.ssh"
-local http_client=require"blue.http_client"
+local matrix = require "blue.matrix.init"
 local tor_cmds = {}
 do
   local function add_cmd(id, name)
@@ -120,7 +119,7 @@ function tor.create(args)
     end
     function circuit:send_raw_cell(cmd, data)
       socket_mutex:lock()
-      print("Send Cell", tor_cmds[cmd].name)
+      -- print("Send Cell", tor_cmds[cmd].name)
       local sd = struct.pack(">" .. circ_id_len .. "B", id, cmd) .. data
       assert(conn:send(sd))
       socket_mutex:unlock()
@@ -212,11 +211,11 @@ function tor.create(args)
       ensure_buf(start + len - 1)
       local data = recv_buf:sub(start, start + len - 1)
       recv_buf = recv_buf:sub(start + len)
-      print("Receive Cell", tor_cmds[cmd].name)
+      -- print("Receive Cell", tor_cmds[cmd].name)
       if circuits[CircID] then
         circuits[CircID](cmd, data)
       else
-        print("Package for unregistered circuit", CircID,cmd)
+        print("Package for unregistered circuit", CircID, cmd)
       end
     end
   end)
@@ -237,11 +236,35 @@ function tor.create(args)
   test_circuit:extend(require"blue.tests.tor_node_infos"["gabelmoo"])
   test_circuit:extend(require"blue.tests.tor_node_infos"["dannenberg"])
   test_circuit:extend(require"blue.tests.tor_node_infos"["BexleyRecipes"])
-  --test_circuit:extend(require"blue.tests.tor_node_infos"["ExitNinja"])
-  local provider=test_circuit:provider()
-  local ssh_provider=ssh.connect("78.42.208.205",2222,"root",provider)
-  print("WEGGER",http_client.request("http://wegger/",nil,nil,ssh_provider))
-
+  -- test_circuit:extend(require"blue.tests.tor_node_infos"["ExitNinja"])
+  local provider = test_circuit:provider()
+  local conn = matrix.connect("", "", "", provider)
+  function conn.on_invite(room)
+    print("JOINING", room.name)
+    room:join()
+  end
+  function conn.on_room_joined(room)
+    local first = true
+    function room.on_sync_finished()
+      if first then
+        first = false
+        if not room.name then
+          for i = 1, 5 do
+            print("SI", i)
+            -- room:send_text_message("MSG "..i)
+          end
+        end
+      end
+    end
+    function room.on_text_message(message, sender)
+      print("MESSAGE", message, sender.name, sender.self)
+      decode(message)
+      if not sender.self then
+        print("SEND", room:send_text_message("Answer: " .. message), true)
+      end
+    end
+  end
+  conn:start()
   print("DONE")
 
   --[[

@@ -242,7 +242,7 @@ XRN1BfnPiM6E5KmCfEIon9saEdP6J/AwfQGcANsLMns=
 -----END SIGNATURE-----
 
 ]==]
-infos["BexleyRecipes"] = --http://18.27.197.252:9030/tor/server/authority
+infos["BexleyRecipes"] = -- http://18.27.197.252:9030/tor/server/authority
 [==[router BexleyRecipes 18.27.197.252 9001 0 9030
 identity-ed25519
 -----BEGIN ED25519 CERT-----

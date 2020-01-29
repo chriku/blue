@@ -22,10 +22,10 @@ local matrix = {}
 local events = require "blue.matrix.events"
 local room_functions = require "blue.matrix.room"
 local user_functions = require "blue.matrix.user"
-function matrix.connect(host, user, pass)
+function matrix.connect(host, user, pass, socket_provider)
   local open = true
   local txcnt = 0
-  local request = do_request(host)
+  local request = do_request(host, socket_provider)
   do -- Check for r0.5.0
     local code, data = request.get("/_matrix/client/versions")
     if not data.versions then
