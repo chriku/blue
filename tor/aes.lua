@@ -2,7 +2,7 @@ local ffi = require "ffi"
 ffi.cdef [[
 typedef struct EVP_CIPHER {} EVP_CIPHER;
 typedef struct EVP_CIPHER_CTX {} EVP_CIPHER_CTX;
-const EVP_CIPHER *EVP_aes_128_cbc(void);
+const EVP_CIPHER *EVP_aes_128_ctr(void);
  EVP_CIPHER_CTX *EVP_CIPHER_CTX_new(void);
  void EVP_CIPHER_CTX_free(EVP_CIPHER_CTX *ctx);
  int EVP_EncryptInit_ex(EVP_CIPHER_CTX *ctx, const EVP_CIPHER *type,
@@ -10,6 +10,8 @@ const EVP_CIPHER *EVP_aes_128_cbc(void);
  int EVP_EncryptUpdate(EVP_CIPHER_CTX *ctx, unsigned char *out,
                        int *outl, const unsigned char *in, int inl);
  int EVP_EncryptFinal_ex(EVP_CIPHER_CTX *ctx, unsigned char *out, int *outl);
+int EVP_CIPHER_CTX_set_padding(EVP_CIPHER_CTX *x, int padding);
+
 ]]
 local lib = ffi.load("/usr/lib/x86_64-linux-gnu/libcrypto.so.1.1")
 local aes = {}
@@ -21,7 +23,8 @@ function aes.new(key)
   for i = 0, 127 do
     iv[i] = 0
   end
-  lib.EVP_EncryptInit_ex(ctx, lib.EVP_aes_128_cbc(), nil, key, iv)
+  lib.EVP_EncryptInit_ex(ctx, lib.EVP_aes_128_ctr(), nil, key, iv)
+  lib.EVP_CIPHER_CTX_set_padding(ctx,0)
   local stream = {}
   function stream.encrypt(data)
     local out = ffi.new("unsigned char[1024]")
