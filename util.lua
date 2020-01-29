@@ -326,4 +326,55 @@ function util.urlencode(str)
   end)
   return str
 end
+local function call_timeout_impl(f, timeout, ...)
+  local args = {...}
+  local cb
+  scheduler.addthread(function()
+    scheduler.sleep(0)
+    local ret = {pcall(f, unpack(args))}
+    if cb then
+      local rcb = cb
+      cb = nil
+      rcb(ret)
+    end
+  end)
+  scheduler.addthread(function()
+    scheduler.sleep(timeout) -- TODO
+    if cb then
+      local rcb = cb
+      cb = nil
+      rcb(nil)
+    end
+  end)
+  cb = scheduler.getresume()
+  local ret = scheduler.yield()
+  if not ret then
+    return nil, "timeout"
+  end
+  local ok = table.remove(ret, 1)
+  if ok then
+    return true, unpack(ret)
+  else
+    error(unpack(ret), 3)
+  end
+end
+function util.call_timeout_error(f, timeout, ...)
+  local ret = {assert(call_timeout_impl(f, timeout, ...))}
+  if not table.remove(ret, 1) then
+    error("timeout")
+  else
+    return unpack(ret)
+  end
+end
+function util.call_timeout_cb_noreturn(f, timeout, cb, ...)
+  local ret = {assert(call_timeout_impl(f, timeout, ...))}
+  if not table.remove(ret, 1) then
+    scheduler.addthread(function()
+      cb()
+    end)
+    scheduler.yield()
+  else
+    return unpack(ret)
+  end
+end
 return util
