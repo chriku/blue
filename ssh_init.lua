@@ -14,9 +14,8 @@
 -- 
 -- You should have received a copy of the GNU Lesser General Public License
 -- along with the Blue-Scheduler. If not, see <http://www.gnu.org/licenses/>.
-
-local ffi=require"ffi"
-ffi.cdef[[
+local ffi = require "ffi"
+ffi.cdef [[
 typedef unsigned long long libssh2_uint64_t;
 typedef unsigned long off_t;
 typedef long long libssh2_int64_t;
@@ -353,10 +352,16 @@ typedef void (*libssh2_trace_handler_func)(LIBSSH2_SESSION*,
 libssh2_scp_send64(LIBSSH2_SESSION *session, const char *path, int mode,
                    libssh2_int64_t size, time_t mtime, time_t atime);
 ]]
-local mod=ffi.load("ssh2")
-return setmetatable({},{__index=function(self,k)
-  local ok,f=pcall(function() return mod[k] end)
-  if ok then return f end
-  return mod["libssh2_"..k]
-end})
+local mod = ffi.load("ssh2")
+return setmetatable({}, {
+  __index = function(self, k)
+    local ok, f = pcall(function()
+      return mod[k]
+    end)
+    if ok then
+      return f
+    end
+    return mod["libssh2_" .. k]
+  end
+})
 

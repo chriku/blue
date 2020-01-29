@@ -14,29 +14,28 @@
 -- 
 -- You should have received a copy of the GNU Lesser General Public License
 -- along with the Blue-Scheduler. If not, see <http://www.gnu.org/licenses/>.
-
 --- Utils
-local scheduler=require"blue.scheduler"
+local scheduler = require "blue.scheduler"
 if false then
   jit.off()
-  local last=os.time()
+  local last = os.time()
   scheduler.addthread(function()
     while true do
       scheduler.sleep(0.1)
-      last=os.time()
+      last = os.time()
     end
   end)
-  debug.sethook(function(a,b,c)
-    if last-os.time()>2 then
+  debug.sethook(function(a, b, c)
+    if last - os.time() > 2 then
       print(debug.traceback())
     end
-    --print(coroutine.running())
-  end,"",1)
+    -- print(coroutine.running())
+  end, "", 1)
 end
-local util={}
-local has_ffi,ffi = pcall(require,"ffi")
+local util = {}
+local has_ffi, ffi = pcall(require, "ffi")
 if has_ffi then
-ffi.cdef[[
+  ffi.cdef [[
 
 typedef long int __time_t;
 typedef long int __suseconds_t;
@@ -55,27 +54,27 @@ struct timeval
 int gettimeofday (struct timeval *__tv,
 __timezone_ptr_t __tz);
 ]]
---- Monotonic time
--- @treturn number time in secods
-function util.time()
-  local tv = ffi.new("struct timeval")
-  local rc = ffi.C.gettimeofday (tv, nil)
-  local returnValue64_c = (tonumber(tv.tv_sec) * 1000) + tonumber(tv.tv_usec)/1000
-  returnValue64_c=returnValue64_c/1000.0
-  return returnValue64_c
-end
+  --- Monotonic time
+  -- @treturn number time in secods
+  function util.time()
+    local tv = ffi.new("struct timeval")
+    local rc = ffi.C.gettimeofday(tv, nil)
+    local returnValue64_c = (tonumber(tv.tv_sec) * 1000) + tonumber(tv.tv_usec) / 1000
+    returnValue64_c = returnValue64_c / 1000.0
+    return returnValue64_c
+  end
 end
 --- Create a killable thread
 function util.kill_task()
-  local kt={}
+  local kt = {}
   local cb
   --- Kills killable thread
   -- Returns from anywhere within a killable thread, even in subfunctions
   -- @param ... are returned from kt:run()
-  function kt:ret(...)--quits task immediately and returns ...
+  function kt:ret(...) -- quits task immediately and returns ...
     if cb then
-      local ocb=cb
-      cb=nil
+      local ocb = cb
+      cb = nil
       ocb(...)
     end
     scheduler.yield()
@@ -84,34 +83,38 @@ function util.kill_task()
   -- @tparam function f Function to be executed
   -- @return[1] return values after function has finished executing
   -- @return[2] arguments of kt:ret()
-  function kt:run(f)--runs task
+  function kt:run(f) -- runs task
     scheduler.addthread(function()
       scheduler.sleep(0)
-      local ret={pcall(f)}
-      if not ret[1] then print("ERROR: "..ret[2]) end
-      table.remove(ret,1)
-      local ocb=cb
-      cb=nil
+      local ret = {pcall(f)}
+      if not ret[1] then
+        print("ERROR: " .. ret[2])
+      end
+      table.remove(ret, 1)
+      local ocb = cb
+      cb = nil
       ocb(unpack(ret))
     end)
-    cb=scheduler.getresume()
+    cb = scheduler.getresume()
     return scheduler.yield()
   end
   return kt
 end
-local function rdecode(data,int,hd)
-  if type(data)~="table" then
-    print(type(data),":",data)
-    --print(debug.traceback())
+local function rdecode(data, int, hd)
+  if type(data) ~= "table" then
+    print(type(data), ":", data)
+    -- print(debug.traceback())
   else
-    for k,v in pairs(data) do
-      for i=1,int do io.write"  " end
-      if type(v)=="table" and int<10 and not hd[v] then
-        hd[v]=true
+    for k, v in pairs(data) do
+      for i = 1, int do
+        io.write "  "
+      end
+      if type(v) == "table" and int < 10 and not hd[v] then
+        hd[v] = true
         print(k)
-        rdecode(v,int+1,hd)
+        rdecode(v, int + 1, hd)
       else
-        print(k,v)
+        print(k, v)
       end
     end
   end
@@ -119,36 +122,38 @@ end
 --- Print data to stdout
 function decode(data)
   print("===== BEGIN =====")
-  rdecode(data,0,{})
+  rdecode(data, 0, {})
   print("===== END =====")
 end
---debug.setmetatable(_G,{__index=function(self,k) error("NOPEI: "..tostring(k),2) end,__newindex=function(self,k) print("NOPEN: "..tostring(k),2) error("NOPEN: "..tostring(k),2) end})
+-- debug.setmetatable(_G,{__index=function(self,k) error("NOPEI: "..tostring(k),2) end,__newindex=function(self,k) print("NOPEN: "..tostring(k),2) error("NOPEN: "..tostring(k),2) end})
 do
-  local todel=setmetatable({},{__mode="k"})
-  local running=false
+  local todel = setmetatable({}, {__mode = "k"})
+  local running = false
   local function make_run()
     if not running then
       scheduler.addthread(function()
-        running=true
+        running = true
         while next(todel) do
-          local diff=nil
-          local cur=util.time()
-          for t,v in pairs(todel) do
-            for k,time in pairs(v) do
-              if cur>=time then
-                t[k]=nil
-                todel[t][k]=nil
+          local diff = nil
+          local cur = util.time()
+          for t, v in pairs(todel) do
+            for k, time in pairs(v) do
+              if cur >= time then
+                t[k] = nil
+                todel[t][k] = nil
               else
-                local ad=time-cur
-                ad=1
-                diff=math.min(diff or ad,ad)
+                local ad = time - cur
+                ad = 1
+                diff = math.min(diff or ad, ad)
               end
             end
           end
-          if not diff then break end
+          if not diff then
+            break
+          end
           scheduler.sleep(diff)
         end
-        running=false
+        running = false
       end)
     end
   end
@@ -156,11 +161,11 @@ do
   -- @tparam table t Table to index
   -- @param f Field
   -- @tparam number time Time to wait
-  function util.delete_later(t,f,time)
+  function util.delete_later(t, f, time)
     if not todel[t] then
-      todel[t]={}
+      todel[t] = {}
     end
-    todel[t][f]=util.time()+time
+    todel[t][f] = util.time() + time
     make_run()
   end
 end
@@ -172,94 +177,115 @@ end
 -- @tparam number timeout timeout in seconds
 -- @tparam table t
 -- @param k
-function util.wait_cb(timeout,t,k)
+function util.wait_cb(timeout, t, k)
   local ret
-  local cb=scheduler.getresume()
+  local cb = scheduler.getresume()
   scheduler.addthread(function()
-    scheduler.sleep(math.max(timeout,0))
-    local ocb=cb
-    cb=nil
-    if ocb then ocb() end
+    scheduler.sleep(math.max(timeout, 0))
+    local ocb = cb
+    cb = nil
+    if ocb then
+      ocb()
+    end
   end)
-  t[k]=function(...)
-    local ocb=cb
-    cb=nil
-    if ocb then ocb(...) end
+  t[k] = function(...)
+    local ocb = cb
+    cb = nil
+    if ocb then
+      ocb(...)
+    end
   end
   return scheduler.yield()
 end
 --- GC Table
 function util.gc_table(gcf)
-  local map1=setmetatable({},{__mode="v"})
-  local map2={}
-  local ret={}
-  local running=false
+  local map1 = setmetatable({}, {__mode = "v"})
+  local map2 = {}
+  local ret = {}
+  local running = false
   local function er()
     if not running then
       scheduler.addthread(function()
-        running=true
+        running = true
         while next(map2) do
           scheduler.sleep(1)
-          for k,v in pairs(map2) do
+          for k, v in pairs(map2) do
             if not map1[k] then
-              scheduler.addthread(gcf,map2[k])
-              map2[k]=nil
+              scheduler.addthread(gcf, map2[k])
+              map2[k] = nil
             end
           end
         end
-        running=false
+        running = false
       end)
     end
   end
-  function ret.add(k,v)
-    local rk={}
-    map2[rk]=v
-    map1[rk]=k
+  function ret.add(k, v)
+    local rk = {}
+    map2[rk] = v
+    map1[rk] = k
     er()
   end
   return ret
 end
 --- Limit function time
-function util.time_task(timeout,f,args)
-  local cb=scheduler.getresume()
+function util.time_task(timeout, f, args)
+  local cb = scheduler.getresume()
   scheduler.addthread(function()
-    scheduler.sleep(math.max(0,timeout))
-    local ocb=cb cb=nil if ocb then ocb() end
+    scheduler.sleep(math.max(0, timeout))
+    local ocb = cb
+    cb = nil
+    if ocb then
+      ocb()
+    end
   end)
   scheduler.addthread(function()
     scheduler.sleep(0)
-    local ret={pcall(f,unpack(args))}
-    local ocb=cb cb=nil if ocb then ocb(ret) end
+    local ret = {pcall(f, unpack(args))}
+    local ocb = cb
+    cb = nil
+    if ocb then
+      ocb(ret)
+    end
   end)
-  local ret=scheduler.yield()
+  local ret = scheduler.yield()
   if ret then
-    local ok=table.remove(ret,1)
-    return ok,ret
+    local ok = table.remove(ret, 1)
+    return ok, ret
   end
   return nil
 end
-rawset(_G,"console",{log=function(...) print("LOG",...) end,warn=function(...) print("WARN",...) end})
+rawset(_G, "console", {
+  log = function(...)
+    print("LOG", ...)
+  end,
+  warn = function(...)
+    print("WARN", ...)
+  end
+})
 --- Create Mutex
 function util.mutex()
-  local mutex={}
+  local mutex = {}
   local waiting
   --- lock mutex
   function mutex:lock()
     if waiting then
-      table.insert(waiting,scheduler.getresume())
+      table.insert(waiting, scheduler.getresume())
       scheduler.yield()
     else
-      waiting={}
+      waiting = {}
     end
   end
   --- unlock mutex
   function mutex:unlock()
-    if not waiting then error("Double unlock",2) end
-    local cur=table.remove(waiting,1)
+    if not waiting then
+      error("Double unlock", 2)
+    end
+    local cur = table.remove(waiting, 1)
     if cur then
       scheduler.addthread(cur)
     else
-      waiting=nil
+      waiting = nil
     end
   end
   return mutex
@@ -268,32 +294,36 @@ end
 -- @treturn socket first end
 -- @treturn socket second end
 function util.pair()
-  local s1={}
-  local s2={}
-  local function conn(a,b)
-    local cbs={}
-    local buf={}
+  local s1 = {}
+  local s2 = {}
+  local function conn(a, b)
+    local cbs = {}
+    local buf = {}
     function a:receive()
-      while #buf==0 do
-        table.insert(cbs,scheduler.getresume())
+      while #buf == 0 do
+        table.insert(cbs, scheduler.getresume())
         scheduler.yield()
       end
-      local data=table.concat(buf)
-      buf={}
+      local data = table.concat(buf)
+      buf = {}
       return data
     end
     function b:send(d)
-      table.insert(buf,d)
-      while #cbs>0 do table.remove(cbs,1)() end
+      table.insert(buf, d)
+      while #cbs > 0 do
+        table.remove(cbs, 1)()
+      end
       return true
     end
   end
-  conn(s1,s2)
-  conn(s2,s1)
-  return s1,s2
+  conn(s1, s2)
+  conn(s2, s1)
+  return s1, s2
 end
 function util.urlencode(str)
-  str=str:gsub(".",function(a)return "%"..string.format("%02X",string.byte(a)) end)
+  str = str:gsub(".", function(a)
+    return "%" .. string.format("%02X", string.byte(a))
+  end)
   return str
 end
 return util

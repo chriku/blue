@@ -18,9 +18,7 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
-]]
-
-local struct = {}
+]] local struct = {}
 
 function struct.pack(format, ...)
   local stream = {}
@@ -185,7 +183,7 @@ function struct.unpack(format, stream)
       table.insert(vars, str)
     elseif opt == 'c' then
       local n = format:sub(i + 1):match('%d+')
-      table.insert(vars, stream:sub(iterator, iterator + tonumber(n)-1))
+      table.insert(vars, stream:sub(iterator, iterator + tonumber(n) - 1))
       iterator = iterator + tonumber(n)
       i = i + n:len()
     end

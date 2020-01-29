@@ -14,26 +14,39 @@
 -- 
 -- You should have received a copy of the GNU Lesser General Public License
 -- along with the Blue-Scheduler. If not, see <http://www.gnu.org/licenses/>.
-
-local json=require"blue.matrix.json"
+local json = require "blue.matrix.json"
 return function(base_host)
-  local do_request={}
-  local header={}
-  function do_request.get(rest,info,put)
-    --print("REQ1",rest)
-    local http_client=require"blue.http_client"
+  local do_request = {}
+  local header = {}
+  function do_request.get(rest, info, put)
+    -- print("REQ1",rest)
+    local http_client = require "blue.http_client"
     local data
-    local head={}
-    if info then data=json.encode(info) head["Content-Type"]="application/json" if put then head[":method"]="PUT" end end
-    for k,v in pairs(header) do head[k]=v end
-    local code,ret=http_client.request(base_host..rest,data,head)
-    local ret2=json.decode(ret)
-    if not ret2 then print(base_host..rest) decode(ret) decode(data) decode(head) os.exit(0) end
-    --print("REQ2",rest)
-    return code,ret2 or {}
+    local head = {}
+    if info then
+      data = json.encode(info)
+      head["Content-Type"] = "application/json"
+      if put then
+        head[":method"] = "PUT"
+      end
+    end
+    for k, v in pairs(header) do
+      head[k] = v
+    end
+    local code, ret = http_client.request(base_host .. rest, data, head)
+    local ret2 = json.decode(ret)
+    if not ret2 then
+      print(base_host .. rest)
+      decode(ret)
+      decode(data)
+      decode(head)
+      os.exit(0)
+    end
+    -- print("REQ2",rest)
+    return code, ret2 or {}
   end
   function do_request.set_access_token(token)
-    header["Authorization"]="Bearer "..token
+    header["Authorization"] = "Bearer " .. token
   end
   return do_request
 end

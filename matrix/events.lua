@@ -14,45 +14,67 @@
 -- 
 -- You should have received a copy of the GNU Lesser General Public License
 -- along with the Blue-Scheduler. If not, see <http://www.gnu.org/licenses/>.
-
-local events={}
-events["m.room.name"]=function(event,meta,handle)
-  meta.index.name=event.content.name
+local events = {}
+events["m.room.name"] = function(event, meta, handle)
+  meta.index.name = event.content.name
 end
-events["m.room.join_rules"]=function(event,meta,handle)end
-events["m.room.member"]=function(event,meta,handle)
+events["m.room.join_rules"] = function(event, meta, handle)
+end
+events["m.room.member"] = function(event, meta, handle)
   meta.conn.user.create_user(event)
 end
-events["m.room.power_levels"]=function(event,meta,handle)end
-events["m.room.history_visibility"]=function(event,meta,handle)end
-events["m.room.guest_access"]=function(event,meta,handle)end
-events["m.room.message"]=function(event,meta,handle)
-  local sender=meta.conn.user.find_user(event.sender)
+events["m.room.power_levels"] = function(event, meta, handle)
+end
+events["m.room.history_visibility"] = function(event, meta, handle)
+end
+events["m.room.guest_access"] = function(event, meta, handle)
+end
+events["m.room.message"] = function(event, meta, handle)
+  local sender = meta.conn.user.find_user(event.sender)
   local time
-  if event.content.msgtype=="m.text" and handle.on_text_message then
-    handle.on_text_message(event.content.body,sender,time)
+  if event.content.msgtype == "m.text" and handle.on_text_message then
+    handle.on_text_message(event.content.body, sender, time)
   end
   if handle.on_message then
-    handle.on_message(event.content,sender,time)
+    handle.on_message(event.content, sender, time)
   end
 end
-events["m.room.create"]=function(event,meta,handle)end
-events[""]=function(event,meta,handle)end
-events[""]=function(event,meta,handle)end
-events[""]=function(event,meta,handle)end
-events[""]=function(event,meta,handle)end
-events[""]=function(event,meta,handle)end
-events[""]=function(event,meta,handle)end
-events[""]=function(event,meta,handle)end
-events[""]=function(event,meta,handle)end
-events[""]=function(event,meta,handle)end
-events[""]=function(event,meta,handle)end
-events[""]=function(event,meta,handle)end
-events[""]=function(event,meta,handle)end
-events[""]=function(event,meta,handle)end
-events[""]=function(event,meta,handle)end
-events[""]=function(event,meta,handle)end
-events[""]=function(event,meta,handle)end
-events[""]=function(event,meta,handle)end
-events[""]=function(event,meta,handle)end
+events["m.room.create"] = function(event, meta, handle)
+end
+events[""] = function(event, meta, handle)
+end
+events[""] = function(event, meta, handle)
+end
+events[""] = function(event, meta, handle)
+end
+events[""] = function(event, meta, handle)
+end
+events[""] = function(event, meta, handle)
+end
+events[""] = function(event, meta, handle)
+end
+events[""] = function(event, meta, handle)
+end
+events[""] = function(event, meta, handle)
+end
+events[""] = function(event, meta, handle)
+end
+events[""] = function(event, meta, handle)
+end
+events[""] = function(event, meta, handle)
+end
+events[""] = function(event, meta, handle)
+end
+events[""] = function(event, meta, handle)
+end
+events[""] = function(event, meta, handle)
+end
+events[""] = function(event, meta, handle)
+end
+events[""] = function(event, meta, handle)
+end
+events[""] = function(event, meta, handle)
+end
+events[""] = function(event, meta, handle)
+end
 return events
