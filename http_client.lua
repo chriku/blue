@@ -31,8 +31,6 @@ function http.request(url, data, req, socket_provider)
   conn:send("\r\n")
   conn:send(data or "")
   local cb
-  -- scheduler.addthread(function()
-  -- scheduler.sleep(0)
   local buf = ""
   local function getline()
     while not buf:find("\r\n") do
@@ -114,17 +112,6 @@ function http.request(url, data, req, socket_provider)
   end
   cb(tonumber(code), content, headers)
   cb = nil
-  -- end)
-  -- scheduler.addthread(function()
-  --  scheduler.sleep(20)
-  --  if not cb then
-  --    return
-  --  end
-  --  cb(200, "timeout")
-  --  cb = nil
-  -- end)
-  -- cb = scheduler.getresume()
-  -- local code, msg = scheduler.yield()
   if conn then
     conn:close()
   end
