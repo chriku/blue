@@ -234,7 +234,7 @@ function ssl.create(socket_provider)
       return
     end
 
-    return conn
+    return require "blue.socket_wrapper"(conn)
   end
   return prov
 end
