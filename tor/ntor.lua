@@ -3,7 +3,7 @@ local curve = require "blue.tor.curve"
 local rsa = require "blue.tor.rsa"
 local hmac = require "blue.tor.hmac"
 local aes = require "blue.tor.aes"
-local rfc5869=require"blue.tor.rfc5869"
+local rfc5869 = require "blue.tor.rfc5869"
 local base64 = require "blue.base64"
 local HANDSHAKE_TYPE_NTOR = 2
 --[[
@@ -35,19 +35,19 @@ return function(node)
   local X, x = curve.gen_key()
   local B = assert(node.router.ntor_onion_key)
   local ID = assert(node.router.fingerprint)
---X=require"blue.hex".decode("31 D5 A8 DF B5 B4 95 1C 72 CD F7 84 72 81 09 75 85 83 F2 84 97 E5 68 E2 52 CA 10 C5 8C 8C 2A 6A")
---x=require"blue.hex".decode("A8 C0 E1 C5 B2 5F 94 4C AF 96 F2 30 7E 64 50 36 77 62 CB 1F 6C C1 B4 45 C6 0E A7 E8 21 3A 3B 7B")
---B=require"blue.hex".decode("74 1C B6 63 E6 C3 9B 0C 68 42 83 3F C6 44 53 04 0A 47 D4 FB C9 54 7F 8B CF E6 DC 79 F9 EB CB 02")
---ID=require"blue.hex".decode("E9 59 55 CD 7A B0 12 DE 77 07 11 87 8F 14 7C 78 4F C1 3D 37")
+  -- X=require"blue.hex".decode("31 D5 A8 DF B5 B4 95 1C 72 CD F7 84 72 81 09 75 85 83 F2 84 97 E5 68 E2 52 CA 10 C5 8C 8C 2A 6A")
+  -- x=require"blue.hex".decode("A8 C0 E1 C5 B2 5F 94 4C AF 96 F2 30 7E 64 50 36 77 62 CB 1F 6C C1 B4 45 C6 0E A7 E8 21 3A 3B 7B")
+  -- B=require"blue.hex".decode("74 1C B6 63 E6 C3 9B 0C 68 42 83 3F C6 44 53 04 0A 47 D4 FB C9 54 7F 8B CF E6 DC 79 F9 EB CB 02")
+  -- ID=require"blue.hex".decode("E9 59 55 CD 7A B0 12 DE 77 07 11 87 8F 14 7C 78 4F C1 3D 37")
   local ret = struct.pack(">HHc20c32c32", HANDSHAKE_TYPE_NTOR, ID:len() + B:len() + X:len(), ID, B, X)
   return ret, function(hdata)
     hdata = hdata:sub(3) -- Remove HDATA Len
---hdata=require"blue.hex".decode("64 58 15 9C EA 82 4E 4D 5D 5C C0 3E 10 E5 2D F7 78 CD 69 93 F7 8B E9 68 4F 88 C6 F6 62 74 65 5F EA 42 B3 AD B0 E1 F9 43 90 74 A8 93 70 C7 FC E3 2A 0A B7 A1 7B E0 88 66 C2 3F F2 B5 CA 18 BF 97")
+    -- hdata=require"blue.hex".decode("64 58 15 9C EA 82 4E 4D 5D 5C C0 3E 10 E5 2D F7 78 CD 69 93 F7 8B E9 68 4F 88 C6 F6 62 74 65 5F EA 42 B3 AD B0 E1 F9 43 90 74 A8 93 70 C7 FC E3 2A 0A B7 A1 7B E0 88 66 C2 3F F2 B5 CA 18 BF 97")
     local Y = hdata:sub(1, 32)
     local auth = hdata:sub(33):sub(1, 32)
     local PROTOID = "ntor-curve25519-sha256-1"
     local secret_input = curve.handshake(x, Y) .. curve.handshake(x, B) .. ID .. B .. X .. Y .. PROTOID
---[[print(require"blue.hex".encode(rfc5869(
+    --[[print(require"blue.hex".encode(rfc5869(
 
 require"blue.hex".decode("2C 57 3B E3 D7 FF 67 1C 43 E5 EB E1 E2 88 E3 11 52 70 35 08 BF A1 E9 49 F0 41 86 5B BF 52 DC 04 6D 7F F4 1A C3 A5 20 16 67 CF 1D 2D F9 8A 76 B7 4C 43 B8 0C 1C 34 CB B0 3C 75 A3 0A F2 EE 94 20 A9 F5 13 5A E1 8C 7E 25 C7 C7 91 17 CD 8C 76 19 BF EB 85 ED 4D 59 9F B1 A3 FC 4F 19 6D 67 9D 07 F5 82 9A 48 7E F7 A0 BF D3 88 B5 DA 86 A1 CE 6E 3F 90 66 7D 86 C6 56 86 7B 54 9C 79 4D 26 E4 AE 27 66 C6 5E D5 2E D5 2F 81 1E BD 6A 65 07 0C F6 E3 E1 28 53 BB 08 8F 7F 98 3A 51 AF 08 26 2F F8 69 12 39 B3 A8 DD E8 56 16 AF 55 C4 89 8F 82 A9 59 04 90 4C 6E 74 6F 72 2D 63 75 72 76 65 32 35 35 31 39 2D 73 68 61 32 35 36 2D 31")
 
@@ -60,14 +60,14 @@ require"blue.hex".decode("2C 57 3B E3 D7 FF 67 1C 43 E5 EB E1 E2 88 E3 11 52 70 
     local auth_v = hmac(auth_input, PROTOID .. ":mac")
     assert(auth_v == auth, "Invalid hash")
     local long_key = rfc5869(secret_input, PROTOID .. ":key_extract", PROTOID .. ":key_expand")
---print(require"blue.hex".encode(long_key))
---99 66 01 70 E7 DA C1 95 08 0F 24 83 D1 60 10 23 23 28 7A 9C 1A 5F F5 C8 74 54 51 9D AB 83 15 DC 2C 33 B4 B5 A5 F4 27 A6 69 D2 38 18 A9 3D BB 10 60 D7 CE A9 28 10 C5 4B 17 DB 8D 69 28 0C BD FA 46 00 CF BD 94 0A E4 C4 29 C8 0B 57 0B 90 52 16 94 20 18 5C DE B6 4F DC 55 E5 C3 3A
+    -- print(require"blue.hex".encode(long_key))
+    -- 99 66 01 70 E7 DA C1 95 08 0F 24 83 D1 60 10 23 23 28 7A 9C 1A 5F F5 C8 74 54 51 9D AB 83 15 DC 2C 33 B4 B5 A5 F4 27 A6 69 D2 38 18 A9 3D BB 10 60 D7 CE A9 28 10 C5 4B 17 DB 8D 69 28 0C BD FA 46 00 CF BD 94 0A E4 C4 29 C8 0B 57 0B 90 52 16 94 20 18 5C DE B6 4F DC 55 E5 C3 3A
     node.digest_forward = long_key:sub(1, 20)
     node.digest_backward = long_key:sub(21, 40)
     node.key_forward = long_key:sub(41, 56)
     node.key_backward = long_key:sub(57, 72)
-    node.aes_forward=aes.encrypt(node.key_forward)
-    node.aes_backward=aes.decrypt(node.key_backward)
+    node.aes_forward = aes.encrypt(node.key_forward)
+    node.aes_backward = aes.decrypt(node.key_backward)
     KH = long_key:sub(73, 72 + 32)
   end
 end

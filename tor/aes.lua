@@ -29,14 +29,14 @@ function aes.encrypt(key)
     iv[i] = 0
   end
   lib.EVP_EncryptInit_ex(ctx, lib.EVP_aes_128_ctr(), nil, key, iv)
-  lib.EVP_CIPHER_CTX_set_padding(ctx,0)
+  lib.EVP_CIPHER_CTX_set_padding(ctx, 0)
   return function(data)
-    local ret=""
+    local ret = ""
     do
       local out = ffi.new("unsigned char[1024]")
       local outlen = ffi.new("int[1]", 1024)
       assert(lib.EVP_EncryptUpdate(ctx, out, outlen, data, data:len()) == 1)
-      ret=ret.. ffi.string(out, outlen[0])
+      ret = ret .. ffi.string(out, outlen[0])
     end
     return ret
   end
@@ -50,14 +50,14 @@ function aes.decrypt(key)
     iv[i] = 0
   end
   lib.EVP_DecryptInit_ex(ctx, lib.EVP_aes_128_ctr(), nil, key, iv)
-  lib.EVP_CIPHER_CTX_set_padding(ctx,0)
+  lib.EVP_CIPHER_CTX_set_padding(ctx, 0)
   return function(data)
-    local ret=""
+    local ret = ""
     do
       local out = ffi.new("unsigned char[1024]")
       local outlen = ffi.new("int[1]", 1024)
       assert(lib.EVP_DecryptUpdate(ctx, out, outlen, data, data:len()) == 1)
-      ret=ret.. ffi.string(out, outlen[0])
+      ret = ret .. ffi.string(out, outlen[0])
     end
     return ret
   end

@@ -110,7 +110,7 @@ wGShTwYk9aqf0gBV9qWVnuD6H9CVnZdcMTYcdWkpzzkY1sicT0B7f9RF1qFoPMdo
 JJ4ZyX0enzBs7IgsgmbjmuLEf8VdzWLVAsE1tGm03mU=
 -----END SIGNATURE-----
 ]==]
-infos["dannenberg"] = --http://193.23.244.244/tor/server/authority
+infos["dannenberg"] = -- http://193.23.244.244/tor/server/authority
 [==[router dannenberg 193.23.244.244 443 0 80
 identity-ed25519
 -----BEGIN ED25519 CERT-----
@@ -166,7 +166,7 @@ x6X5QdvrdGznncza/YE3dKzc8XdFXD7+t1tSYDSeoWPMpSkB1ydOqZ4a1x9cpXR9
 -----END SIGNATURE-----
 
 ]==]
-infos["ExitNinja"] = --http://46.165.245.154/tor/server/authority
+infos["ExitNinja"] = -- http://46.165.245.154/tor/server/authority
 [==[router ExitNinja 46.165.245.154 443 0 80
 identity-ed25519
 -----BEGIN ED25519 CERT-----
