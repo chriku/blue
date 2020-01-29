@@ -34,9 +34,6 @@ function http.request(url, data, req, socket_provider)
   end
   conn:send("\r\n")
   conn:send(data or "")
-  local cb
-  -- scheduler.addthread(function()
-  -- scheduler.sleep(0)
   local buf = ""
   local function getline()
     while not buf:find("\r\n") do
@@ -58,12 +55,10 @@ function http.request(url, data, req, socket_provider)
   end
   local l, err = getline()
   if not l then
-    if not cb then
-      return
+    if conn then
+      conn:close()
     end
-    cb(nil, err)
-    cb = nil
-    return
+    return nil, err
   end
   local code = l:match("HTTP/1.1 ([0-9]+)")
   local content = ""
@@ -71,12 +66,10 @@ function http.request(url, data, req, socket_provider)
   repeat
     local line, err = getline()
     if not line then
-      if not cb then
-        return
+      if conn then
+        conn:close()
       end
-      cb(nil, err)
-      cb = nil
-      return
+      return nil, err
     end
     local k, v = line:match("^(.-):[ \n\t]*(.-)$")
     if k and v then
@@ -113,25 +106,9 @@ function http.request(url, data, req, socket_provider)
       content = content .. assert(conn:receive())
     end
   end
-  if not cb then
-    return
-  end
-  cb(tonumber(code), content, headers)
-  cb = nil
-  -- end)
-  -- scheduler.addthread(function()
-  --  scheduler.sleep(20)
-  --  if not cb then
-  --    return
-  --  end
-  --  cb(200, "timeout")
-  --  cb = nil
-  -- end)
-  -- cb = scheduler.getresume()
-  -- local code, msg = scheduler.yield()
   if conn then
     conn:close()
   end
-  return code, msg
+  return tonumber(code), content, headers
 end
 return http
