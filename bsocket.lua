@@ -87,7 +87,7 @@ if package.loaded.copas then
     function client:close()
       return s:close()
     end
-    return require"blue.socket_wrapper"(client)
+    return require "blue.socket_wrapper"(client)
   end
   local sl = {}
   socket.connect = function(host, port)
@@ -263,7 +263,7 @@ elseif package.loaded.lgi then
         rresume[k] = nil
       end
     end
-    return require"blue.socket_wrapper"(client)
+    return require "blue.socket_wrapper"(client)
   end
   socket.connect = function(host, port)
     local s = Gio.SocketClient.new()

@@ -103,7 +103,7 @@ function ssh.connect(host, port, username, socket_provider)
       channel = nil
       return unpack(ret)
     end
-    return require"blue.socket_wrapper"(skt)
+    return require "blue.socket_wrapper"(skt)
   end
   return prov
 end
