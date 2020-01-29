@@ -1,5 +1,9 @@
 package.path = package.path .. ";../?.lua"
-local copas = require "copas"
+-- local copas = require "copas"
+local lgi = require "lgi"
+local Gtk = lgi.require("Gtk", "3.0")
+lgi.require("GLib", "2.0")
+local GLib = lgi.GLib
 local scheduler = require "blue.scheduler"
 scheduler.addthread(function()
   local tor = require "blue.tor"
@@ -9,4 +13,5 @@ scheduler.addthread(function()
   }
   print("CONN OPEN", conn)
 end)
-copas.loop()
+-- copas.loop()
+GLib.MainLoop.run(GLib.MainLoop.new(GLib.MainContext.default()))

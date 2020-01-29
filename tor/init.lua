@@ -85,7 +85,8 @@ function tor.create(args)
   assert(args.first_relay)
   assert(args.first_relay.ip)
   assert(args.first_relay.port)
-  local socket_provider = ssl.create()
+  assert(args.first_relay.port)
+  local socket_provider = ssl.create(args.socket_provider)
   print("CONN TO", args.first_relay.ip, args.first_relay.port)
   local conn = socket_provider.connect(args.first_relay.ip, args.first_relay.port)
 
@@ -240,15 +241,19 @@ function tor.create(args)
 
   control:send_cell("netinfo", struct.pack(">I BB BBBB B", os.time(), 4, 4, 0, 0, 0, 0, 0))
 
-  local test_circuit = create_path(register_circuit(1), require"blue.tests.tor_node_infos"["moria1"])
+  local code, moria1 = http_client.request("http://moria.csail.mit.edu:9131/tor/server/authority", nil, nil, args.socket_provider)
+
+  local test_circuit = create_path(register_circuit(1), moria1)
 
   -- test_circuit:extend(require"blue.tests.tor_node_infos"["gabelmoo"])
   -- test_circuit:extend(require"blue.tests.tor_node_infos"["dannenberg"])
   -- test_circuit:extend(require"blue.tests.tor_node_infos"["BexleyRecipes"])
   -- test_circuit:extend(require"blue.tests.tor_node_infos"["ExitNinja"])
-  local dir_circuit = create_path(register_circuit(2), require"blue.tests.tor_node_infos"["moria1"])
+  local dir_circuit = create_path(register_circuit(2), moria1)
   local dir_provider = require "blue.socket_wrapper"({connect = dir_circuit:provider().connect_dir})
+  -- print("LOADING CONSENSUS")
   local e, consensus_data = http_client.request("http://node/tor/status-vote/current/consensus", nil, nil, dir_provider)
+  print("LOADED CONSENSUS")
   consensus = dir.parse_consensus(consensus_data)
   local nodes = {}
   for i = 1, 3 do
@@ -264,7 +269,7 @@ function tor.create(args)
     test_circuit:extend(nodes[i])
   end
   local provider = test_circuit:provider()
-  print(http_client.request("https://google.com/", nil, nil, provider))
+  print(http_client.request("https://talstrasse.hp-lichtblick.de/yay", nil, nil, provider))
   print("EXTENDED")
 
   --[[  local provider = test_circuit:provider()

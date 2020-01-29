@@ -61,7 +61,7 @@ function http.request(url, data, req, socket_provider)
     end
     return nil, err
   end
-  local code = l:match("HTTP/1.1 ([0-9]+)")
+  local code = assert(l:match("HTTP/1.[0-9] ([0-9]+)"))
   local content = ""
   local headers = {}
   repeat
