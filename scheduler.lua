@@ -139,7 +139,7 @@ local function compat_glib()
     times[t] = (times[t] or 0) + time
     local ok = table.remove(ret, 1)
     if not ok then
-      print("ERR", ret[1])
+      -- print("ERR", ret[1])
       return nil
     end
     return unpack(ret)

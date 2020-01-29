@@ -204,25 +204,68 @@ function tor.create(args)
 
   control:send_cell("netinfo", struct.pack(">I BB BBBB B", os.time(), 4, 4, 0, 0, 0, 0, 0))
 
-  local code, moria1 = http_client.request("http://moria.csail.mit.edu:9131/tor/server/authority", nil, nil, args.socket_provider)
+  local code, moria1
+  repeat
+    code, moria1 = http_client.request("http://moria.csail.mit.edu:9131/tor/server/authority", nil, nil, args.socket_provider)
+    print(code, moria1)
+  until code == 200
 
   local test_circuit = create_path(register_circuit(1), moria1)
 
-   test_circuit:extend(require"blue.tests.tor_node_infos"["gabelmoo"])
-   test_circuit:extend(require"blue.tests.tor_node_infos"["dannenberg"])
-   test_circuit:extend(require"blue.tests.tor_node_infos"["BexleyRecipes"])
+  -- test_circuit:extend(require"blue.tests.tor_node_infos"["gabelmoo"])
+  -- test_circuit:extend(require"blue.tests.tor_node_infos"["dannenberg"])
   -- test_circuit:extend(require"blue.tests.tor_node_infos"["ExitNinja"])
-  --[[local dir_circuit = create_path(register_circuit(2), moria1)
+  local dir_circuit = create_path(register_circuit(2), moria1)
+  -- dir_circuit:extend(require"blue.tests.tor_node_infos"["gabelmoo"])
+  -- dir_circuit:extend(require"blue.tests.tor_node_infos"["dannenberg"])
+  dir_circuit:extend(require"blue.tests.tor_node_infos"["BexleyRecipes"])
   local dir_provider = require "blue.socket_wrapper"({connect = dir_circuit:provider().connect_dir})
+  print(http_client.request("http://node/tor/rendezvous2/zfb5772vpm4i5ioutjq5ehw2beaau7qk", nil, nil, dir_provider))
+  os.exit(0)
   -- print("LOADING CONSENSUS")
-  local e, consensus_data = http_client.request("http://node/tor/status-vote/current/consensus", nil, nil, dir_provider)
+  local e, consensus_data
+  local file = io.open("consensus")
+  if file then
+    consensus_data = file:read("*a")
+    file:close()
+  end
+  if not consensus_data then
+    error("MISSING Consensus")
+    e, consensus_data = http_client.request("http://node/tor/status-vote/current/consensus", nil, nil, dir_provider)
+    local file = io.open("consensus", "w")
+    file:write(consensus_data)
+    file:close()
+  end
   print("LOADED CONSENSUS")
   consensus = dir.parse_consensus(consensus_data)
-  for _, dir in ipairs(consensus.hidden_service_dirs) do
-    local function f()
-      local status, content = http_client.request(dir.ip .. ":" .. dir.dirport, nil, nil, nil)
-      print(status)
+  local cnt = 0
+  scheduler.addthread(function()
+    while true do
+      scheduler.sleep(1)
+      -- print("CNT", cnt)
     end
+  end)
+  for i, dir in ipairs(consensus.hidden_service_dirs) do
+    if i % 100 == 0 then
+      print(i, "of", #consensus.hidden_service_dirs, "current(", cnt, ")")
+    end
+    local function f()
+      cnt = cnt + 1
+      -- print("REQ",dir.ip,dir.dirport)
+      local e, m = pcall(function()
+        local status, content = http_client.request("http://" .. dir.ip .. ":" .. dir.dirport .. "/tor/rendezvous/3g2upl4pq6kufc4m", nil, nil, nil)
+        if status and status < 300 then
+          decode(dir)
+          print(content)
+        end
+      end)
+      cnt = cnt - 1
+      -- assert(e, m)
+    end
+    while cnt > 512 do
+      scheduler.sleep(0.001)
+    end
+    scheduler.addthread(f)
   end
 
   --[[local nodes = {}
@@ -238,9 +281,9 @@ function tor.create(args)
   for i = 1, #nodes do
     test_circuit:extend(nodes[i])
   end]]
-  local provider = test_circuit:provider()
-  print(http_client.request("http://3g2upl4pq6kufc4m.onion/", nil, nil, provider))
-  print("EXTENDED")
+  -- local provider = test_circuit:provider()
+  -- print(http_client.request("http://3g2upl4pq6kufc4m.onion/", nil, nil, provider))
+  -- print("EXTENDED")
 
   --[[  local provider = test_circuit:provider()
   local conn = matrix.connect("", "", "", provider)

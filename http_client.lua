@@ -85,7 +85,7 @@ function http.request(url, data, req, socket_provider)
       local c = ""
       local l = getline()
       len = tonumber(l, 16)
-      print("LEN", len, l)
+      -- print("LEN", len, l)
       -- headers["transfer-encoding"]=nil
       while c:len() < len do
         c = c .. buf:sub(1, 1)

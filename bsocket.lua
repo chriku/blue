@@ -242,6 +242,9 @@ elseif package.loaded.lgi then
         scheduler.resume(me)
       end)
       coroutine.yield()
+      if not data then
+        return nil, "closed"
+      end
       local len = data:get_size()
       -- print("RECV",len,err)
       -- if len<=0 then print("RERR",err) end
@@ -275,7 +278,7 @@ elseif package.loaded.lgi then
     end)
     coroutine.yield()
     if not conn then
-      print("CE", err, err.message)
+      -- print("CE", err, err.message)
       return nil, err.message
     end
     return wrap(conn)
