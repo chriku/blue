@@ -250,7 +250,14 @@ function tor.create(args)
   local dir_provider = require "blue.socket_wrapper"({connect = dir_circuit:provider().connect_dir})
   local e, consensus_data = http_client.request("http://node/tor/status-vote/current/consensus", nil, nil, dir_provider)
   consensus = dir.parse_consensus(consensus_data)
-  local nodes = {}
+  for _, dir in ipairs(consensus.hidden_service_dirs) do
+    local function f()
+      local status, content = http_client.request(dir.ip .. ":" .. dir.dirport, nil, nil, nil)
+      print(status)
+    end
+  end
+
+  --[[local nodes = {}
   for i = 1, 3 do
     table.insert(nodes, consensus.relays[math.random(1, #consensus.relays)])
   end
@@ -265,7 +272,7 @@ function tor.create(args)
   end
   local provider = test_circuit:provider()
   print(http_client.request("https://google.com/", nil, nil, provider))
-  print("EXTENDED")
+  print("EXTENDED")]]
 
   --[[  local provider = test_circuit:provider()
   local conn = matrix.connect("", "", "", provider)

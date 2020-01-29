@@ -100,13 +100,13 @@ function dir.parse_consensus(data)
   local consensus = read_dir(data)
   local relay = {}
   local relays = {}
-  local network = {relays = relays, exits = {}}
+  local network = {relays = relays, exits = {}, hidden_service_dirs = {}}
   for _, pair in ipairs(consensus) do
     if pair.key == "r" then
       relay = {}
       table.insert(relays, relay)
       local name, identity, digest, publication, ip, orport, dirport = pair.data:match(
-                                                                           "^([^ \n\t]*)[ \n\t]*([^ \n\t]*)[ \n\t]*([^ \n\t]*)[ \n\t]*([^ \n\t]*)[ \n\t]*([^ \n\t]*)[ \n\t]*([^ \n\t]*)[ \n\t]*([^ \n\t]*)[ \n\t]*")
+                                                                           "^([^ \n\t]*)[ \n\t]*([^ \n\t]*)[ \n\t]*([^ \n\t]*)[ \n\t]*([^ \n\t]*[ \n\t]*[^ \n\t]*)[ \n\t]*([^ \n\t]*)[ \n\t]*([^ \n\t]*)[ \n\t]*([^ \n\t]*)[ \n\t]*")
       relay.name = name
       relay.identity = assert(require"blue.base64".decode(identity))
       relay.digest = assert(require"blue.base64".decode(digest))
@@ -120,12 +120,20 @@ function dir.parse_consensus(data)
         if flag == "Exit" then
           relay.exit = true
         end
+        if flag:find("HSDir") then
+          relay.hsdir = true
+        end
       end
     end
   end
   for _, relay in ipairs(relays) do
     if relay.exit then
       table.insert(network.exits, relay)
+    end
+  end
+  for _, relay in ipairs(relays) do
+    if relay.hsdir then
+      table.insert(network.hidden_service_dirs, relay)
     end
   end
   return network
