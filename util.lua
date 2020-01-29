@@ -374,7 +374,7 @@ local function call_timeout_impl(f, timeout, ...)
   end
 end
 function util.call_timeout_error(f, timeout, ...)
-  local ret = {assert(call_timeout_impl(f, timeout, ...))}
+  local ret = {call_timeout_impl(f, timeout, ...)}
   if not table.remove(ret, 1) then
     error("timeout")
   else
@@ -382,11 +382,9 @@ function util.call_timeout_error(f, timeout, ...)
   end
 end
 function util.call_timeout_cb_noreturn(f, timeout, cb, ...)
-  local ret = {assert(call_timeout_impl(f, timeout, ...))}
+  local ret = {call_timeout_impl(f, timeout, ...)}
   if not table.remove(ret, 1) then
-    scheduler.addthread(function()
-      cb()
-    end)
+    cb()
     scheduler.yield()
   else
     return unpack(ret)

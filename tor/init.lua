@@ -224,10 +224,18 @@ function tor.create(args)
 
   control:send_raw_cell(7, struct.pack(">HH", 2, 3))
 
-  assert(read_version_cell(control:read_cell()))
-  read_certs_cell(control:read_cell())
-  read_challenge_cell(control:read_cell())
-  read_netinfo_cell(control:read_cell())
+  assert(read_version_cell(util.call_timeout_cb_noreturn(control.read_cell, 5, function()
+    error("First Handshake timeout")
+  end, control)))
+  read_certs_cell(util.call_timeout_cb_noreturn(control.read_cell, 5, function()
+    error("First Handshake timeout")
+  end, control))
+  read_challenge_cell(util.call_timeout_cb_noreturn(control.read_cell, 5, function()
+    error("First Handshake timeout")
+  end, control))
+  read_netinfo_cell(util.call_timeout_cb_noreturn(control.read_cell, 5, function()
+    error("First Handshake timeout")
+  end, control))
 
   control:send_cell("netinfo", struct.pack(">I BB BBBB B", os.time(), 4, 4, 0, 0, 0, 0, 0))
 
