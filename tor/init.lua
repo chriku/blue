@@ -233,6 +233,9 @@ function tor.create(args)
   local test_circuit = create_path(register_circuit(1), require"blue.tests.tor_node_infos"["moria1"])
 
   test_circuit:extend(require"blue.tests.tor_node_infos"["gabelmoo"])
+  test_circuit:extend(require"blue.tests.tor_node_infos"["dannenberg"])
+  test_circuit:extend(require"blue.tests.tor_node_infos"["ExitNinja"])
+  test_circuit:test()
 
   print("DONE")
 

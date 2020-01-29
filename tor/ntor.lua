@@ -2,6 +2,7 @@ local struct = require "blue.struct"
 local curve = require "blue.tor.curve"
 local rsa = require "blue.tor.rsa"
 local hmac = require "blue.tor.hmac"
+local aes = require "blue.tor.aes"
 local rfc5869=require"blue.tor.rfc5869"
 local base64 = require "blue.base64"
 local HANDSHAKE_TYPE_NTOR = 2
@@ -65,6 +66,8 @@ require"blue.hex".decode("2C 57 3B E3 D7 FF 67 1C 43 E5 EB E1 E2 88 E3 11 52 70 
     node.digest_backward = long_key:sub(21, 40)
     node.key_forward = long_key:sub(41, 56)
     node.key_backward = long_key:sub(57, 72)
+    node.aes_forward=aes.encrypt(node.key_forward)
+    node.aes_backward=aes.decrypt(node.key_backward)
     KH = long_key:sub(73, 72 + 32)
   end
 end
