@@ -19,7 +19,7 @@ return function(base_host)
   local do_request = {}
   local header = {}
   function do_request.get(rest, info, put)
-    -- print("REQ1",rest)
+    --print("REQ1",rest)
     local http_client = require "blue.http_client"
     local data
     local head = {}
@@ -42,7 +42,7 @@ return function(base_host)
       decode(head)
       os.exit(0)
     end
-    -- print("REQ2",rest)
+    --print("REQ2",rest)
     return code, ret2 or {}
   end
   function do_request.set_access_token(token)

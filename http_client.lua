@@ -84,7 +84,7 @@ function http.request(url, data, req, socket_provider)
       local c = ""
       local l = getline()
       len = tonumber(l, 16)
-      print("LEN", len, l)
+      --print("LEN", len, l)
       -- headers["transfer-encoding"]=nil
       while c:len() < len do
         c = c .. buf:sub(1, 1)
@@ -93,11 +93,13 @@ function http.request(url, data, req, socket_provider)
           buf = assert(conn:receive())
         end
       end
-      if headers["transfer-encoding"] == "chunked" then
-        getline()
-        c = string.format("%X", len) .. "\r\n" .. c .. "\r\n"
-      end
-      content = content .. c
+      getline()
+      content=content..c
+      --if headers["transfer-encoding"] == "chunked" then
+      --  getline()
+      --  c = string.format("%X", len) .. "\r\n" .. c .. "\r\n"
+      --end
+      --content = content .. c
     until headers["transfer-encoding"] ~= "chunked" or len == 0
   else
     content = buf
