@@ -196,7 +196,7 @@ local function compat_glib()
   end
   return scheduler
 end
-if love then
+if rawget(_G,"love") then
   return compat_love()
 elseif package.loaded.copas then
   return compat_copas()
