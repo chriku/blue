@@ -101,6 +101,11 @@ function dir.parse_consensus(data)
   local relay = {}
   local relays = {}
   local network = {relays = relays, exits = {}, hidden_service_dirs = {}}
+  local function parse_date(str)
+    local year, month, day, hour, min, sec = str:match("^([0-9]+)%-([0-9]+)%-([0-9]+)% ([0-9]+)%:([0-9]+)%:([0-9]+)$")
+    return (os.time {year = year, month = month, day = day, hour = hour, min = min, sec = sec, isdst = false} - os.time {year = 1970, month = 01, day = 1, hour = 0, min = 0, sec = 0, isdst = false})
+  end
+  network.valid_after = parse_date(consensus["valid-after"][1].data)
   for _, pair in ipairs(consensus) do
     if pair.key == "r" then
       relay = {}

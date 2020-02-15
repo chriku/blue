@@ -17,7 +17,9 @@ local scheduler = require "blue.scheduler"
 local create_path = require "blue.tor.path"
 local matrix = require "blue.matrix.init"
 local http_client = require "blue.http_client"
-local dir = require "tor.dir"
+local base32 = require "blue.base32"
+local dir = require "blue.tor.dir"
+local sha3 = require "blue.tor.sha3"
 local tor_cmds = {}
 do
   local function add_cmd(id, name)
@@ -207,22 +209,21 @@ function tor.create(args)
   local code, moria1
   repeat
     code, moria1 = http_client.request("http://moria.csail.mit.edu:9131/tor/server/authority", nil, nil, args.socket_provider)
-    print(code, moria1)
+    -- print(code, moria1)
   until code == 200
 
   local test_circuit = create_path(register_circuit(1), moria1)
-
+  -- Target: http://xb2grobibwfzs3whjdqs6djk2lns3mkusdxsgz5nknb3honbvxacjaid.onion/
   -- test_circuit:extend(require"blue.tests.tor_node_infos"["gabelmoo"])
   -- test_circuit:extend(require"blue.tests.tor_node_infos"["dannenberg"])
   -- test_circuit:extend(require"blue.tests.tor_node_infos"["ExitNinja"])
   local dir_circuit = create_path(register_circuit(2), moria1)
   -- dir_circuit:extend(require"blue.tests.tor_node_infos"["gabelmoo"])
   -- dir_circuit:extend(require"blue.tests.tor_node_infos"["dannenberg"])
-  dir_circuit:extend(require"blue.tests.tor_node_infos"["BexleyRecipes"])
+  -- dir_circuit:extend(require"blue.tests.tor_node_infos"["BexleyRecipes"])
   local dir_provider = require "blue.socket_wrapper"({connect = dir_circuit:provider().connect_dir})
-  print(http_client.request("http://node/tor/rendezvous2/zfb5772vpm4i5ioutjq5ehw2beaau7qk", nil, nil, dir_provider))
-  os.exit(0)
-  -- print("LOADING CONSENSUS")
+  -- print(http_client.request("http://node/tor/rendezvous2/zfb5772vpm4i5ioutjq5ehw2beaau7qk", nil, nil, dir_provider))
+  -- os.exit(0)
   local e, consensus_data
   local file = io.open("consensus")
   if file then
@@ -230,7 +231,7 @@ function tor.create(args)
     file:close()
   end
   if not consensus_data then
-    error("MISSING Consensus")
+    print("MISSING Consensus")
     e, consensus_data = http_client.request("http://node/tor/status-vote/current/consensus", nil, nil, dir_provider)
     local file = io.open("consensus", "w")
     file:write(consensus_data)
@@ -238,6 +239,21 @@ function tor.create(args)
   end
   print("LOADED CONSENSUS")
   consensus = dir.parse_consensus(consensus_data)
+  print("PARSED CONSENSUS")
+  local function lookup_onion(addr)
+    local addr_bin = base32.decode(addr)
+    local mins = consensus.valid_after / 60
+    local blk = math.floor(mins / 1440)
+    print("Current time", blk)
+    local nonce = "key-blind" .. struct.pack(">LL", blk, 1440)
+    local basepoint = "(15112221349535400772501151409588531511454012693041857206046113283949847762202, 46316835694926478169428394003475163141307993866256225615783033603165251855960)"
+    local h=sha3("Derive temporary signing key\0" .. addr_bin:sub(1, 32) .. basepoint .. nonce)
+    h=string.char(bit.band(h:byte(1),248))..h:sub(2,31)..string.char(bit.bor(64,bit.band(63,h:byte(32))))
+    print(h:len())
+  end
+  lookup_onion("xb2grobibwfzs3whjdqs6djk2lns3mkusdxsgz5nknb3honbvxacjaid") -- http://xb2grobibwfzs3whjdqs6djk2lns3mkusdxsgz5nknb3honbvxacjaid.onion/
+
+  os.exit()
   local cnt = 0
   scheduler.addthread(function()
     while true do
