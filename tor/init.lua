@@ -360,7 +360,7 @@ int ed25519_public_blind(uint8_t *out,
     return nil, "error"
   end
   -- local descriptor, creds = assert(lookup_onion("aupfgzsrk52tj4bp7debhwvdfl5u4g6lsdxro5gxbemn4r3cazutqbad"))
-  local descriptor, creds = assert(lookup_onion("5wxesr7reiqgk5l7rjchy66iqyssgwnd7oziip6uy3yz4hrtfs47cmqd"))
+  local descriptor, creds = assert(lookup_onion("aupfgzsrk52tj4bp7debhwvdfl5u4g6lsdxro5gxbemn4r3cazutqbad"))
   descriptor = dir.parse_hidden(descriptor)
 
   local function crypt(SECRET_DATA, STRING_CONSTANT, data)
@@ -420,16 +420,7 @@ int ed25519_public_blind(uint8_t *out,
   --test_circuit2:sendme()
   local test_provider = test_circuit2:provider() -- require "blue.socket_wrapper"({connect = .connect})
   print("STARTING REQUEST")
-  print(http_client.request("http://(rendezvous):8080/README", nil, nil, {
-    connect = function()
-      local skt = test_provider.connect("(rendezvous)", 8080)
-      --skt:sendme()
-      for i = 1, 5 do
-        --skt:sendme()
-      end
-      return skt
-    end
-  }))
+  print(http_client.request("http://(rendezvous)/", nil, nil, test_provider))
 
   os.exit()
   local cnt = 0

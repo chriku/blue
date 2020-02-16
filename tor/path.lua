@@ -220,6 +220,11 @@ return function(circuit, first_node_info)
       local socket = {}
       local cmd, data = circuit:read()
       if cmd ~= 4 then
+        if cmd==3 then
+          if data:byte()==6 then
+            return nil,"closed"
+          end
+        end
         print("ERROR", cmd,string.byte(data))
         return nil, "tor error"
       end
