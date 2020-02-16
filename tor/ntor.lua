@@ -34,6 +34,6 @@ return function(node)
     node.key_backward = long_key:sub(57, 72)
     node.aes_forward = aes.encrypt(node.key_forward)
     node.aes_backward = aes.decrypt(node.key_backward)
-    KH = long_key:sub(73, 72 + 32)
+    local KH = long_key:sub(73, 72 + 32)
   end
 end

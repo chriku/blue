@@ -1,6 +1,7 @@
 local sha1 = require "blue.sha1"
 local lib = require "blue.tor.openssl"
 local rsa = {}
+local ffi = require "ffi"
 ffi.metatype("struct X509", {
   __index = {
     verify = function(self, string)

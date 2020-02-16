@@ -23,11 +23,7 @@ local function unhex(a)
   return ret
 end
 function curve.gen_key()
-  math.randomseed(os.time())
-  local key = ""
-  while key:len() < 32 do
-    key = key .. string.char(math.random(0, 255))
-  end
+  local key = require "blue.tor.random"(32)
   local k0 = string.byte(key, 1)
   local k31 = string.byte(key, 32)
   key = string.char(bit.band(k0, 248)) .. key:sub(2, 31) .. string.char(bit.bor(64, bit.band(127, k31)))

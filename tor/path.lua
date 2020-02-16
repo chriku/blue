@@ -1,12 +1,13 @@
 local dir = require "blue.tor.dir"
 local ntor = require "blue.tor.ntor"
-local hmac = require "blue.tor.hmac_sha3"
 local struct = require "blue.struct"
 local aes = require "blue.tor.aes_stream"
 local tor_sha1 = require "blue.tor.sha1_stream"
 local scheduler = require "blue.scheduler"
 local curve = require "blue.tor.curve"
 local sha3 = require "blue.tor.sha3"
+local random = require "blue.tor.random"
+local link_specifier = require "blue.tor.link_specifier"
 
 return function(circuit, first_node_info)
   local control
@@ -26,11 +27,9 @@ return function(circuit, first_node_info)
     end
     local node = assert(nodes[idx])
     local relay_content_hash = struct.pack(">BHHIH", cmd, 0, stream_id, 0, data:len()) .. data
-    while relay_content_hash:len() < 509 do
-      relay_content_hash = relay_content_hash .. string.char(math.random(0, 255))
-    end
+    relay_content_hash = relay_content_hash .. random(509 - relay_content_hash:len())
     local digest = node.hash_forward(relay_content_hash):sub(1, 4)
-    relay_content = relay_content_hash:sub(1, 5) .. digest .. relay_content_hash:sub(10)
+    local relay_content = relay_content_hash:sub(1, 5) .. digest .. relay_content_hash:sub(10)
     for i = idx, 1, -1 do
       relay_content = nodes[i].aes_forward(relay_content)
     end
@@ -51,7 +50,7 @@ return function(circuit, first_node_info)
       local cmd, recognized, stream_id, digest, length = struct.unpack(">BHHc4H", data)
       if recognized == 0 then
         local node = nodes[i]
-        relay_content_hash = data:sub(1, 5) .. "\0\0\0\0" .. data:sub(10)
+        local relay_content_hash = data:sub(1, 5) .. "\0\0\0\0" .. data:sub(10)
         assert(digest == node.hash_backward(relay_content_hash):sub(1, 4), "Inv data")
         data = data:sub(12, 12 - 1 + length)
         cnt = cnt - 1
@@ -64,29 +63,10 @@ return function(circuit, first_node_info)
     end
     error("Invalid packet")
   end
-  local function gen_link_spec_list(router)
-    local ids = {}
-    if router.fingerprint then
-      table.insert(ids, struct.pack(">BBc20", 2, 20, router.fingerprint))
-    end
-    if router.address then
-      local ip1, ip2, ip3, ip4 = assert(router.address):match("^([0-9]+)%.([0-9]+)%.([0-9]+)%.([0-9]+)$")
-      ip1 = assert(tonumber(ip1))
-      ip2 = assert(tonumber(ip2))
-      ip3 = assert(tonumber(ip3))
-      ip4 = assert(tonumber(ip4))
-      table.insert(ids, struct.pack("BB BBBB H", 0, 6, ip1, ip2, ip3, ip4, assert(router.orport)))
-    end
-    if router.raw_address then
-      table.insert(ids, struct.pack("BB c6", 0, 6, router.raw_address))
-    end
-    return struct.pack(">B ", #ids) .. table.concat(ids)
-  end
   function path:extend(node_info)
-    math.randomseed(os.time() * math.random())
     local new_node = {router = type(node_info) == "string" and dir.parse_to_router(node_info) or node_info}
     local handshake_data, handshake_cb = ntor(new_node)
-    local extend_content = gen_link_spec_list(new_node.router) .. handshake_data
+    local extend_content = link_specifier.generate_list(new_node.router) .. handshake_data
     send_to_node(#nodes, 14, 0, extend_content, true)
     local sid, cmd, hdata = read_relay_cell(circuit:read_cell())
     assert(cmd == 15)
@@ -98,67 +78,25 @@ return function(circuit, first_node_info)
     local sid, cmd, hdata = read_relay_cell(circuit:read_cell())
     assert(cmd == 39)
   end
-  function path:rendezvous2(i1d)
-    local x, B, X = i1d.x, i1d.B, i1d.X
+  function path:rendezvous2(ntor_cb)
 
-    local ID = i1d.auth_key
     local sid, cmd, hdata = read_relay_cell(circuit:read_cell())
     assert(cmd == 37)
     local Y = hdata:sub(1, 32)
     local auth = hdata:sub(33):sub(1, 32)
-    local PROTOID = "tor-hs-ntor-curve25519-sha3-256-1"
-    local secret_input = curve.handshake(x, Y) .. curve.handshake(x, B) .. ID .. B .. X .. Y .. PROTOID
-    local seed = hmac(PROTOID .. ":hs_key_extract", secret_input)
-    local verify = hmac(PROTOID .. ":hs_verify", secret_input)
-    local auth_input = verify .. ID .. B .. Y .. X .. PROTOID .. "Server"
-    local auth_v = hmac(PROTOID .. ":hs_mac", auth_input)
-    assert(auth_v == auth, "Invalid MAC")
-    local long_key = require "blue.tor.shake3"(seed .. "tor-hs-ntor-curve25519-sha3-256-1" .. ":hs_key_expand", 32 * 2 + 32 * 2)
-    print("KEYS", require"blue.hex".encode(long_key))
     local new_node = {}
-    new_node.hash_forward = require "blue.tor.sha3_stream"()
-    new_node.hash_backward = require "blue.tor.sha3_stream"()
-    new_node.digest_forward = long_key:sub(1, 32)
-    new_node.digest_backward = long_key:sub(33, 64)
-    new_node.hash_forward(new_node.digest_forward)
-    new_node.hash_backward(new_node.digest_backward)
-    new_node.key_forward = long_key:sub(65, 96)
-    new_node.key_backward = long_key:sub(97, 128)
-    new_node.aes_forward = aes.encrypt(new_node.key_forward)
-    new_node.aes_backward = aes.decrypt(new_node.key_backward)
+    ntor_cb(Y, auth, new_node)
     table.insert(nodes, new_node)
   end
   function path:introduce1(hs, creds, rendezvous, cookie)
-    math.randomseed(os.time() * math.random())
-    local data = string.rep(string.char(0), 20) .. struct.pack(">B H c32 B", 2, 32, hs.auth_key, 0)
-    local PROTOID = "tor-hs-ntor-curve25519-sha3-256-1"
-    local B = hs.enc_key
-    local X, x = curve.gen_key()
-    local intro_secret_hs_input = curve.handshake(x, B) .. hs.auth_key .. X .. B .. PROTOID
-    local info = PROTOID .. ":hs_key_expand" .. creds.subcredential
-    local hs_keys = require "blue.tor.shake3"(intro_secret_hs_input .. PROTOID .. ":hs_key_extract" .. info, 32 + 32)
-    local S_KEY_LEN = 32
-    local ENC_KEY = hs_keys:sub(1, S_KEY_LEN)
-    local MAC_KEY = hs_keys:sub(S_KEY_LEN + 1)
 
-    local plaintext = cookie .. struct.pack(">B", 0) .. struct.pack(">BH", 1, 32) .. rendezvous.ntor_onion_key .. gen_link_spec_list(rendezvous)
-    print("DECRYPTED " .. require"blue.hex".encode(plaintext))
-
-    local encrypted_data = aes.encrypt(ENC_KEY)(plaintext)
-
-    data = data .. X .. encrypted_data
-    while data:len() < (246 - 32) do
-      data = data .. string.char(math.random(0, 255))
-    end
-    data = data .. sha3(struct.pack(">L", 32) .. MAC_KEY .. data)
-
-    print("DATA LEN", data:len())
+    local data, ntor_cb = require "blue.tor.ntor_hidden"(hs, creds, cookie, rendezvous)
 
     send_to_node(#nodes, 34, 0, data, false)
     local sid, cmd, hdata = read_relay_cell(circuit:read_cell())
     assert(cmd == 40)
     assert(hdata == "\0\0\0", "Error creating circuit")
-    return {x = x, X = X, B = B, auth_key = hs.auth_key}
+    return ntor_cb
   end
   local sub_buffer = {}
   local receive_running = false

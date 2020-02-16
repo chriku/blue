@@ -1,4 +1,5 @@
 local lib = require "blue.tor.openssl"
+local ffi = require "ffi"
 
 return function(key, salt, info)
   -- key,salt,info=key,salt,info

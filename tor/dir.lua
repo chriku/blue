@@ -3,6 +3,9 @@ local dir = {}
 local base64 = require "blue.base64"
 local hex = require "blue.hex"
 local function read_dir(str)
+  if not str then
+    error("Invalid directory string", 2)
+  end
   local lines = {}
   local items = {}
   local in_block = nil
@@ -94,6 +97,9 @@ local function parse_router(items)
   return router
 end
 function dir.parse_to_router(doc)
+  if not doc then
+    error("invalid router string", 2)
+  end
   return parse_router(read_dir(doc))
 end
 function dir.parse_hidden(doc)
@@ -134,7 +140,6 @@ function dir.parse_hidden_plain(doc)
           elseif type == 2 then
             intp.link_specifier.fingerprint = data
           end
-          print(type, require"blue.hex".encode(data))
           ls = ls:sub(len + 1)
         end
       elseif key == "onion-key" then

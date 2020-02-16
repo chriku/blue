@@ -1,4 +1,5 @@
 local lib = require "blue.tor.openssl"
+local ffi = require "ffi"
 return function(data, size)
   local ctx = ffi.gc(lib.EVP_MD_CTX_new(), lib.EVP_MD_CTX_free)
   lib.EVP_DigestInit_ex(ctx, lib.EVP_shake256(), nil)

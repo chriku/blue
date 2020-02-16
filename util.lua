@@ -1,17 +1,17 @@
 -- Copyright (c) 2019 Christian Georg Kurz [chrikuvellberg@gmail.com]
--- 
--- This file is part of the Blue-Scheduler. 
--- 
+--
+-- This file is part of the Blue-Scheduler.
+--
 -- The Blue-Scheduler is free software: you can redistribute it and/or modify
 -- it under the terms of the GNU Lesser General Public License as
 -- published by the Free Software Foundation, either version 3 of
 -- the License, or (at your option) any later version.
--- 
+--
 -- The Blue-Scheduler is distributed in the hope that it will be useful,
 -- but WITHOUT ANY WARRANTY; without even the implied warranty of
 -- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 -- GNU General Public License for more details.
--- 
+--
 -- You should have received a copy of the GNU Lesser General Public License
 -- along with the Blue-Scheduler. If not, see <http://www.gnu.org/licenses/>.
 local hex = require "blue.hex"
@@ -140,7 +140,15 @@ function decode(data)
   rdecode(data, 0, {})
   print("===== END =====")
 end
--- debug.setmetatable(_G,{__index=function(self,k) error("NOPEI: "..tostring(k),2) end,__newindex=function(self,k) print("NOPEN: "..tostring(k),2) error("NOPEN: "..tostring(k),2) end})
+debug.setmetatable(_G, {
+  __index = function(self, k)
+    error("NOPEI: " .. tostring(k), 2)
+  end,
+  __newindex = function(self, k)
+    print("NOPEN: " .. tostring(k), 2)
+    error("NOPEN: " .. tostring(k), 2)
+  end
+})
 do
   local todel = setmetatable({}, {__mode = "k"})
   local running = false

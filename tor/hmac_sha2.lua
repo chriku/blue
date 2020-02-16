@@ -1,4 +1,5 @@
 local lib = require "blue.tor.openssl"
+local ffi = require "ffi"
 return function(message, key)
   local ctx = ffi.gc(lib.HMAC_CTX_new(), lib.HMAC_CTX_free)
   assert(lib.HMAC_Init_ex(ctx, key, key:len(), lib.EVP_sha256(), nil) == 1)
