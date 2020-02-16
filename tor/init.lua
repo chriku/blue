@@ -1,19 +1,19 @@
 local tor = {}
 local ssl = require "blue.ssl"
+local base64 = require "blue.base64"
 local struct = require "blue.struct"
-local sha1 = require "blue.sha1"
-local rsa = require "blue.tor.rsa"
-local aes = require "blue.tor.aes_stream"
-local ed25519 = require "blue.tor.ed25519"
+local aes = require "blue.tor.crypto.aes_stream"
 local util = require "blue.util"
-local scheduler = require "blue.scheduler"
 local matrix = require "blue.matrix.init"
 local http_client = require "blue.http_client"
 local dir = require "blue.tor.dir"
-local sha3 = require "blue.tor.sha3"
+local sha3 = require "blue.tor.crypto.sha3"
 local circ = require "blue.tor.circuit"
-local param = require "blue.tor.param"
 local hsc = require "blue.tor.hidden_service_client"
+local socket_wrapper = require "blue.socket_wrapper"
+local shake3 = require "blue.tor.crypto.shake3"
+local random = require "blue.tor.crypto.random"
+
 function tor.create(args)
   assert(args.first_relay)
   assert(args.first_relay.ip)
@@ -108,7 +108,7 @@ function tor.create(args)
   -- dir_circuit:extend(require"blue.tests.tor_node_infos"["gabelmoo"])
   -- dir_circuit:extend(require"blue.tests.tor_node_infos"["dannenberg"])
   -- dir_circuit:extend(require"blue.tests.tor_node_infos"["BexleyRecipes"])
-  local dir_provider = require "blue.socket_wrapper"({connect = dir_circuit:provider().connect_dir})
+  local dir_provider = socket_wrapper({connect = dir_circuit:provider().connect_dir})
   -- print(http_client.request("http://node/tor/rendezvous2/zfb5772vpm4i5ioutjq5ehw2beaau7qk", nil, nil, dir_provider))
   -- os.exit(0)
   local function require_file(fn, url)
@@ -143,14 +143,14 @@ function tor.create(args)
     assert(type(SECRET_DATA) == "string")
     assert(type(STRING_CONSTANT) == "string")
     assert(type(data) == "string")
-    local encrypted = require"blue.base64".decode(data)
+    local encrypted = base64.decode(data)
     local salt, mac
     salt, encrypted, mac = encrypted:sub(1, 16), encrypted:sub(17, -33), encrypted:sub(-32, -1)
     local secret_input = SECRET_DATA .. creds.subcredential .. struct.pack(">L", tonumber(assert(descriptor["revision-counter"][1]).data))
     local S_KEY_LEN = 32
     local S_IV_LEN = 16
     local MAC_KEY_LEN = 32
-    local keys = require "blue.tor.shake3"(secret_input .. salt .. STRING_CONSTANT, S_KEY_LEN + S_IV_LEN + MAC_KEY_LEN)
+    local keys = shake3(secret_input .. salt .. STRING_CONSTANT, S_KEY_LEN + S_IV_LEN + MAC_KEY_LEN)
     assert(keys:len() == (S_KEY_LEN + S_IV_LEN + MAC_KEY_LEN))
     local SECRET_KEY = keys:sub(1, S_KEY_LEN)
     local SECRET_IV = keys:sub(1 + S_KEY_LEN, S_IV_LEN + S_KEY_LEN)
@@ -166,7 +166,7 @@ function tor.create(args)
   local inner = dir.parse_hidden_inner(superdecrypted)
   local authorization_cookie = ""
   local decrypted = crypt(creds.blinded_pubkey .. authorization_cookie, "hsdir-encrypted-data", inner["encrypted"][1].block_data.data)
-  local cookie = require "blue.tor.random"(20)
+  local cookie = random(20)
 
   local rdp = tor.routers["gabelmoo"]
 

@@ -2,6 +2,7 @@ require "blue.util"
 local dir = {}
 local base64 = require "blue.base64"
 local hex = require "blue.hex"
+local ed25519 = require "blue.tor.crypto.ed25519"
 local function read_dir(str)
   if not str then
     error("Invalid directory string", 2)
@@ -126,7 +127,7 @@ function dir.parse_hidden_plain(doc)
     for _, d in ipairs(ip) do
       local key = d.key
       if key == "introduction-point" then
-        local ls = require"blue.base64".decode(d.data)
+        local ls = base64.decode(d.data)
         intp.link_specifier = {}
         local count = ls:byte(1)
         ls = ls:sub(2)
@@ -144,14 +145,14 @@ function dir.parse_hidden_plain(doc)
         end
       elseif key == "onion-key" then
         local key = d.data:match("^ntor (.*)$")
-        intp.link_specifier.ntor_onion_key = require"blue.base64".decode(key)
+        intp.link_specifier.ntor_onion_key = base64.decode(key)
       elseif key == "auth-key" then
-        intp.auth_key = require"blue.tor.ed25519".parse_cert(require"blue.base64".decode(d.block_data.data))
+        intp.auth_key = ed25519.parse_cert(base64.decode(d.block_data.data))
       elseif key == "enc-key" then
         local key = d.data:match("^ntor (.*)$")
-        intp.enc_key = require"blue.base64".decode(key)
+        intp.enc_key = base64.decode(key)
       elseif key == "enc-key-cert" then
-        intp.enc_key_cert = require"blue.base64".decode(d.block_data.data)
+        intp.enc_key_cert = base64.decode(d.block_data.data)
       else
         print("Unknown key in hidden service: " .. key)
       end
@@ -196,8 +197,8 @@ function dir.parse_consensus(data)
     return (os.time {year = year, month = month, day = day, hour = hour, min = min, sec = sec, isdst = false} - os.time {year = 1970, month = 01, day = 1, hour = 0, min = 0, sec = 0, isdst = false})
   end
   network.valid_after = parse_date(consensus["valid-after"][1].data)
-  network.shared_current_value = require"blue.base64".decode(consensus["shared-rand-current-value"][1].data:match("^[0-9]* (.-)$"))
-  network.shared_prev_value = require"blue.base64".decode(consensus["shared-rand-previous-value"][1].data:match("^[0-9]* (.-)$"))
+  network.shared_current_value = base64.decode(consensus["shared-rand-current-value"][1].data:match("^[0-9]* (.-)$"))
+  network.shared_prev_value = base64.decode(consensus["shared-rand-previous-value"][1].data:match("^[0-9]* (.-)$"))
   for _, pair in ipairs(consensus) do
     if pair.key == "r" then
       relay = {protos = {}}
@@ -205,9 +206,8 @@ function dir.parse_consensus(data)
       local name, identity, digest, publication, ip, orport, dirport = pair.data:match(
                                                                            "^([^ \n\t]*)[ \n\t]*([^ \n\t]*)[ \n\t]*([^ \n\t]*)[ \n\t]*([^ \n\t]*[ \n\t]*[^ \n\t]*)[ \n\t]*([^ \n\t]*)[ \n\t]*([^ \n\t]*)[ \n\t]*([^ \n\t]*)[ \n\t]*")
       relay.name = name
-      relay.identity = assert(require"blue.base64".decode(identity))
-      relay.digest = assert(require"blue.base64".decode(digest))
-      -- print(require"blue.hex".encode(relay.digest):gsub(" ",""))
+      relay.identity = assert(base64.decode(identity))
+      relay.digest = assert(base64.decode(digest))
       relay.ip = ip
       relay.orport = tonumber(orport)
       relay.dirport = tonumber(dirport)

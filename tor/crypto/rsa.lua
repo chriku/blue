@@ -1,5 +1,5 @@
 local sha1 = require "blue.sha1"
-local lib = require "blue.tor.openssl"
+local lib = require "blue.tor.crypto.openssl"
 local rsa = {}
 local ffi = require "ffi"
 ffi.metatype("struct X509", {

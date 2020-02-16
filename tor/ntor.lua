@@ -1,11 +1,11 @@
 local struct = require "blue.struct"
-local curve = require "blue.tor.curve"
-local rsa = require "blue.tor.rsa"
-local hmac = require "blue.tor.hmac_sha2"
-local aes = require "blue.tor.aes_stream"
-local rfc5869 = require "blue.tor.rfc5869"
+local curve = require "blue.tor.crypto.curve"
+local rsa = require "blue.tor.crypto.rsa"
+local hmac = require "blue.tor.crypto.hmac_sha2"
+local aes = require "blue.tor.crypto.aes_stream"
+local rfc5869 = require "blue.tor.crypto.rfc5869"
 local base64 = require "blue.base64"
-local tor_sha1 = require "blue.tor.sha1_stream"
+local tor_sha1 = require "blue.tor.crypto.sha1_stream"
 local HANDSHAKE_TYPE_NTOR = 2
 return function(node)
   local X, x = curve.gen_key()

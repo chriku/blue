@@ -1,4 +1,5 @@
 local ffi = require "ffi"
+local random=require "blue.tor.crypto.random"
 local bit = require "bit"
 ffi.cdef [[
 int crypto_scalarmult_curve25519(unsigned char *q, const unsigned char *n,
@@ -23,7 +24,7 @@ local function unhex(a)
   return ret
 end
 function curve.gen_key()
-  local key = require "blue.tor.random"(32)
+  local key = random(32)
   local k0 = string.byte(key, 1)
   local k31 = string.byte(key, 32)
   key = string.char(bit.band(k0, 248)) .. key:sub(2, 31) .. string.char(bit.bor(64, bit.band(127, k31)))

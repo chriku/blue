@@ -1,4 +1,4 @@
-local lib = require "blue.tor.openssl"
+local lib = require "blue.tor.crypto.openssl"
 local ffi = require "ffi"
 return function(message, key)
   local ctx = ffi.gc(lib.HMAC_CTX_new(), lib.HMAC_CTX_free)

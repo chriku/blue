@@ -1,4 +1,4 @@
-local lib = require "blue.tor.openssl"
+local lib = require "blue.tor.crypto.openssl"
 local ffi = require "ffi"
 return function(len)
   if len > 0 then

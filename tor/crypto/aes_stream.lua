@@ -1,4 +1,4 @@
-local lib = require "blue.tor.openssl"
+local lib = require "blue.tor.crypto.openssl"
 local ffi = require "ffi"
 local aes = {}
 function aes.encrypt(key_in, iv_in)

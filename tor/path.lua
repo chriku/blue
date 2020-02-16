@@ -1,13 +1,15 @@
 local dir = require "blue.tor.dir"
 local ntor = require "blue.tor.ntor"
 local struct = require "blue.struct"
-local aes = require "blue.tor.aes_stream"
-local tor_sha1 = require "blue.tor.sha1_stream"
+local aes = require "blue.tor.crypto.aes_stream"
+local tor_sha1 = require "blue.tor.crypto.sha1_stream"
 local scheduler = require "blue.scheduler"
-local curve = require "blue.tor.curve"
-local sha3 = require "blue.tor.sha3"
-local random = require "blue.tor.random"
+local curve = require "blue.tor.crypto.curve"
+local sha3 = require "blue.tor.crypto.sha3"
+local random = require "blue.tor.crypto.random"
 local link_specifier = require "blue.tor.link_specifier"
+local ntor_hidden = require "blue.tor.ntor_hidden"
+local socket_wrapper = require "blue.socket_wrapper"
 
 return function(circuit, first_node_info)
   local control
@@ -90,7 +92,7 @@ return function(circuit, first_node_info)
   end
   function path:introduce1(hs, creds, rendezvous, cookie)
 
-    local data, ntor_cb = require "blue.tor.ntor_hidden"(hs, creds, cookie, rendezvous)
+    local data, ntor_cb = ntor_hidden(hs, creds, cookie, rendezvous)
 
     send_to_node(#nodes, 34, 0, data, false)
     local sid, cmd, hdata = read_relay_cell(circuit:read_cell())
@@ -198,7 +200,7 @@ return function(circuit, first_node_info)
           return ""
         end
       end
-      return require "blue.socket_wrapper"(socket)
+      return socket_wrapper(socket)
     end
     function provider.connect(host, port)
       local socket = {}

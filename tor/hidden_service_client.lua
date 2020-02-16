@@ -1,8 +1,11 @@
-local sha3 = require "blue.tor.sha3"
+local sha3 = require "blue.tor.crypto.sha3"
 local base32 = require "blue.base32"
+local base64 = require "blue.base64"
 local struct = require "blue.struct"
 local scheduler = require "blue.scheduler"
 local http_client = require "blue.http_client"
+local key_blinding = require "blue.tor.key_blinding"
+local socket_wrapper = require "blue.socket_wrapper"
 
 return function(tor)
   local hidden_service_client = {}
@@ -17,7 +20,7 @@ return function(tor)
     local nonce = "key-blind" .. struct.pack(">LL", blk, 1440)
     local basepoint = "(15112221349535400772501151409588531511454012693041857206046113283949847762202, 46316835694926478169428394003475163141307993866256225615783033603165251855960)"
     local h = sha3("Derive temporary signing key\0" .. addr_bin:sub(1, 32) .. basepoint .. nonce)
-    local blinded_pubkey = require"blue.tor.key_blinding".blind_public_key(addr_bin:sub(1, 32), h)
+    local blinded_pubkey = key_blinding.blind_public_key(addr_bin:sub(1, 32), h)
     local credential = sha3("credential" .. addr_bin:sub(1, 32))
     local subcredential = sha3("subcredential" .. credential .. blinded_pubkey)
     local hsdir_n_replicas = 2
@@ -75,8 +78,8 @@ return function(tor)
         local ok, data, data2 = pcall(function()
           local dir_circuit = tor.circuit.create_path()
           dir_circuit:extend(tor.routers[dir.identity])
-          local dir_provider = require "blue.socket_wrapper"({connect = dir_circuit:provider().connect_dir})
-          local status, content = http_client.request("http://node/tor/hs/3/" .. require"blue.base64".encode(blinded_pubkey), nil, nil, dir_provider)
+          local dir_provider = socket_wrapper({connect = dir_circuit:provider().connect_dir})
+          local status, content = http_client.request("http://node/tor/hs/3/" .. base64.encode(blinded_pubkey), nil, nil, dir_provider)
           if status == 200 then
             return content, {blinded_pubkey = blinded_pubkey, pubkey = addr_bin:sub(1, 32), credential = credential, subcredential = subcredential}
           end
