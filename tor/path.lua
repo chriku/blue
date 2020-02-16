@@ -1,9 +1,9 @@
 local dir = require "blue.tor.dir"
 local ntor = require "blue.tor.ntor"
-local hmac = require "blue.tor.hmac2"
+local hmac = require "blue.tor.hmac_sha3"
 local struct = require "blue.struct"
-local aes = require "blue.tor.aes"
-local tor_sha1 = require "blue.tor.sha1"
+local aes = require "blue.tor.aes_stream"
+local tor_sha1 = require "blue.tor.sha1_stream"
 local scheduler = require "blue.scheduler"
 local curve = require "blue.tor.curve"
 local sha3 = require "blue.tor.sha3"
@@ -85,7 +85,6 @@ return function(circuit, first_node_info)
   function path:extend(node_info)
     math.randomseed(os.time() * math.random())
     local new_node = {router = type(node_info) == "string" and dir.parse_to_router(node_info) or node_info}
-    decode(new_node)
     local handshake_data, handshake_cb = ntor(new_node)
     local extend_content = gen_link_spec_list(new_node.router) .. handshake_data
     send_to_node(#nodes, 14, 0, extend_content, true)
@@ -220,12 +219,12 @@ return function(circuit, first_node_info)
       local socket = {}
       local cmd, data = circuit:read()
       if cmd ~= 4 then
-        if cmd==3 then
-          if data:byte()==6 then
-            return nil,"closed"
+        if cmd == 3 then
+          if data:byte() == 6 then
+            return nil, "closed"
           end
         end
-        print("ERROR", cmd,string.byte(data))
+        print("ERROR", cmd, string.byte(data))
         return nil, "tor error"
       end
       function socket:sendme()

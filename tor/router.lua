@@ -1,2 +1,0 @@
-local router = {}
-return router
