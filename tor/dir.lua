@@ -9,7 +9,8 @@ local function read_dir(str)
   local in_block = nil
   local block_data
   local last_item = {}
-  for line in str:gmatch("[^\n]*") do
+  str = str:sub(1, (str:find("\0", nil, true) or 0) - 1)
+  for line in str:gmatch("[^\n\r]+") do
     local object_begin = line:match("^%-%-%-%-%-BEGIN ([A-Za-z0-9%- ]+)%-%-%-%-%-$")
     local object_end = line:match("^%-%-%-%-%-END ([A-Za-z0-9%- ]+)%-%-%-%-%-$")
     local keyword_single = line:match("^([A-Za-z0-9%-]+)$")
@@ -43,7 +44,7 @@ local function read_dir(str)
       block_data = block_data .. line
     end
   end
-  assert(not in_block)
+  assert(not in_block, "Still in block")
   -- items.to_sign=str:match("^.*\nrouter%-signature\n")
   return items
 end
@@ -101,6 +102,61 @@ function dir.parse_to_router(doc)
 end
 function dir.parse_hidden(doc)
   return read_dir(doc)
+end
+function dir.parse_hidden_inner(doc)
+  return read_dir(doc)
+end
+function dir.parse_hidden_plain(doc)
+  local ips = {}
+  local cur = {}
+  for _, line in ipairs(read_dir(doc)) do
+    if line.key == "introduction-point" then
+      table.insert(ips, cur)
+      cur = {}
+    end
+    table.insert(cur, line)
+  end
+  local hidden_service = {intoduction_points = {}}
+  table.insert(ips, cur)
+  local meta = table.remove(ips, 1)
+  for _, ip in ipairs(ips) do
+    local intp = {}
+    for _, d in ipairs(ip) do
+      local key = d.key
+      if key == "introduction-point" then
+        local ls = require"blue.base64".decode(d.data)
+        intp.link_specifier = {}
+        local count = ls:byte(1)
+        ls = ls:sub(2)
+        for i = 1, count do
+          local type = ls:byte(1)
+          local len = ls:byte(2)
+          ls = ls:sub(3)
+          local data = ls:sub(1, len)
+          if type == 0 then
+            intp.link_specifier.raw_address = data
+          elseif type == 2 then
+            intp.link_specifier.fingerprint = data
+          end
+          print(type, require"blue.hex".encode(data))
+          ls = ls:sub(len + 1)
+        end
+      elseif key == "onion-key" then
+        local key = d.data:match("^ntor (.*)$")
+        intp.link_specifier.ntor_onion_key = require"blue.base64".decode(key)
+      elseif key == "auth-key" then
+        intp.auth_key=require"blue.tor.ed25519".parse_cert(require"blue.base64".decode(d.block_data.data))
+      elseif key == "enc-key" then
+        intp.enc_key = require"blue.base64".decode(d.data)
+      elseif key == "enc-key-cert" then
+        intp.enc_key_cert = require"blue.base64".decode(d.block_data.data)
+      else
+        print("Unknown key in hidden service: " .. key)
+      end
+    end
+    table.insert(hidden_service.intoduction_points, intp)
+  end
+  return hidden_service
 end
 local function do_router(routers, rt)
   for _, pair in ipairs(rt) do

@@ -1,6 +1,6 @@
+local struct=require"blue.struct"
 local ed25519 = {}
-function ed25519.parse(str)
-  print(enc(str))
+function ed25519.parse_cert(str)
   local version, type, exp, cert_key_type, certified_key, n_extensions = struct.unpack(">BBIBc32B", str)
   assert(version == 1, "Invalid Version")
   assert(cert_key_type == 1, "Invalid Type")

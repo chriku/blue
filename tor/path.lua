@@ -36,7 +36,9 @@ return function(circuit, first_node_info)
 
   local cnt = 1000
   local function read_relay_cell(cmd, data)
-    assert(cmd == "relay")
+    if cmd ~= "relay" then
+      error("Invalid reply for relay: " .. cmd)
+    end
     for i = 1, 10 do
       data = nodes[i].aes_backward(data)
       local cmd, recognized, stream_id, digest, length = struct.unpack(">BHHc4H", data)
@@ -58,18 +60,36 @@ return function(circuit, first_node_info)
   function path:extend(node_info)
     math.randomseed(os.time() * math.random())
     local new_node = {router = type(node_info) == "string" and dir.parse_to_router(node_info) or node_info}
-    local ip1, ip2, ip3, ip4 = assert(new_node.router.address):match("^([0-9]+)%.([0-9]+)%.([0-9]+)%.([0-9]+)$")
-    ip1 = assert(tonumber(ip1))
-    ip2 = assert(tonumber(ip2))
-    ip3 = assert(tonumber(ip3))
-    ip4 = assert(tonumber(ip4))
+    local ids = {}
+    if new_node.router.fingerprint then
+      table.insert(ids, struct.pack(">BBc20", 2, 20, new_node.router.fingerprint))
+    end
+    if new_node.router.address then
+      local ip1, ip2, ip3, ip4 = assert(new_node.router.address):match("^([0-9]+)%.([0-9]+)%.([0-9]+)%.([0-9]+)$")
+      ip1 = assert(tonumber(ip1))
+      ip2 = assert(tonumber(ip2))
+      ip3 = assert(tonumber(ip3))
+      ip4 = assert(tonumber(ip4))
+      table.insert(ids, struct.pack("BB BBBB H", 0, 6, ip1, ip2, ip3, ip4, assert(new_node.router.orport)))
+    end
+    if new_node.router.raw_address then
+      table.insert(ids, struct.pack("BB c6", 0, 6, new_node.router.raw_address))
+    end
+    decode(new_node)
     local handshake_data, handshake_cb = ntor(new_node)
-    local extend_content = struct.pack(">B BB BBBB H", 2, 0, 6, ip1, ip2, ip3, ip4, assert(new_node.router.orport)) .. struct.pack(">BBc20", 2, 20, new_node.router.fingerprint) .. handshake_data
+    local extend_content = struct.pack(">B ", #ids) .. table.concat(ids) .. handshake_data
     send_to_node(#nodes, 14, 0, extend_content, true)
     local sid, cmd, hdata = read_relay_cell(circuit:read_cell())
     assert(cmd == 15)
     handshake_cb(hdata)
     table.insert(nodes, new_node)
+  end
+  function path:introduce1(key)
+    math.randomseed(os.time() * math.random())
+    local data = string.rep(string.char(0), 20) .. struct.pack(">B H c32 B", 2, 32, key, 0)
+    send_to_node(#nodes, 34, 0, data, false)
+    decode {read_relay_cell(circuit:read_cell())}
+    os.exit(0)
   end
   local sub_buffer = {}
   local receive_running = false

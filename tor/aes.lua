@@ -1,10 +1,14 @@
 local ffi = require "ffi"
 ffi.cdef [[
+void *malloc(size_t size);
+void free(void *ptr);
 typedef struct EVP_CIPHER {} EVP_CIPHER;
 typedef struct EVP_CIPHER_CTX {} EVP_CIPHER_CTX;
 const EVP_CIPHER *EVP_aes_128_ctr(void);
+const EVP_CIPHER *EVP_aes_256_ctr(void);
  EVP_CIPHER_CTX *EVP_CIPHER_CTX_new(void);
  void EVP_CIPHER_CTX_free(EVP_CIPHER_CTX *ctx);
+ int EVP_CIPHER_CTX_reset(EVP_CIPHER_CTX *c);
  int EVP_EncryptInit_ex(EVP_CIPHER_CTX *ctx, const EVP_CIPHER *type,
                         ENGINE *impl, const unsigned char *key, const unsigned char *iv);
  int EVP_EncryptUpdate(EVP_CIPHER_CTX *ctx, unsigned char *out,
@@ -16,7 +20,6 @@ const EVP_CIPHER *EVP_aes_128_ctr(void);
                        int *outl, const unsigned char *in, int inl);
  int EVP_DecryptFinal_ex(EVP_CIPHER_CTX *ctx, unsigned char *out, int *outl);
 int EVP_CIPHER_CTX_set_padding(EVP_CIPHER_CTX *x, int padding);
-
 ]]
 local lib = ffi.load("/usr/lib/x86_64-linux-gnu/libcrypto.so.1.1")
 local aes = {}
@@ -24,8 +27,8 @@ function aes.encrypt(key)
   assert(key)
   assert(key:len() == 16)
   local ctx = ffi.gc(lib.EVP_CIPHER_CTX_new(), lib.EVP_CIPHER_CTX_free)
-  local iv = ffi.new("unsigned char[128]")
-  for i = 0, 127 do
+  local iv = ffi.new("unsigned char[16]")
+  for i = 0, 15 do
     iv[i] = 0
   end
   lib.EVP_EncryptInit_ex(ctx, lib.EVP_aes_128_ctr(), nil, key, iv)
@@ -41,21 +44,40 @@ function aes.encrypt(key)
     return ret
   end
 end
-function aes.decrypt(key)
-  assert(key)
-  assert(key:len() == 16)
-  local ctx = ffi.gc(lib.EVP_CIPHER_CTX_new(), lib.EVP_CIPHER_CTX_free)
-  local iv = ffi.new("unsigned char[128]")
-  for i = 0, 127 do
-    iv[i] = 0
+local gd = {}
+function aes.decrypt(key_in, iv_in)
+  assert(key_in)
+  assert((key_in:len() == 16) or (key_in:len() == 32))
+  local key = ffi.cast("uint8_t*", ffi.C.malloc(32))
+  ffi.copy(key, key_in)
+  local iv
+  if iv_in then
+    iv = ffi.cast("uint8_t*", ffi.C.malloc(16))
+    ffi.copy(iv, iv_in)
+  else
+    iv = ffi.cast("uint8_t*", ffi.C.malloc(16))
+    for i = 0, 15 do
+      iv[i] = 0
+    end
   end
-  lib.EVP_DecryptInit_ex(ctx, lib.EVP_aes_128_ctr(), nil, key, iv)
+  local ctx = ffi.gc(lib.EVP_CIPHER_CTX_new(), function(ctx)
+    assert(lib.EVP_CIPHER_CTX_reset(ctx) == 1)
+    lib.EVP_CIPHER_CTX_free(ctx)
+    ffi.C.free(key)
+    ffi.C.free(iv)
+  end)
+  local c = lib.EVP_aes_128_ctr()
+  if (key_in:len() == 32) then
+    c = lib.EVP_aes_256_ctr()
+  end
+  lib.EVP_DecryptInit_ex(ctx, c, nil, key, iv)
   lib.EVP_CIPHER_CTX_set_padding(ctx, 0)
   return function(data)
     local ret = ""
     do
-      local out = ffi.new("unsigned char[1024]")
-      local outlen = ffi.new("int[1]", 1024)
+      local l = data:len() + 128
+      local out = ffi.new("unsigned char[?]", l)
+      local outlen = ffi.new("int[1]", l)
       assert(lib.EVP_DecryptUpdate(ctx, out, outlen, data, data:len()) == 1)
       ret = ret .. ffi.string(out, outlen[0])
     end

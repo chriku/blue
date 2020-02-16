@@ -283,6 +283,8 @@ int ed25519_public_blind(uint8_t *out,
     print(require"blue.hex".encode(ffi.string(pubkey, 32)))
     tor.ed25519_public_blind(out, ffi.new("char[32]", addr_bin:sub(1, 32)), ffi.new("char[?]", h:len(), h))
     local blinded_pubkey = ffi.string(out, 32)
+    local credential = sha3("credential" .. addr_bin:sub(1, 32))
+    local subcredential = sha3("subcredential" .. credential .. blinded_pubkey)
     print(require"blue.base64".encode(blinded_pubkey))
     local hsdir_n_replicas = 2
     local hsdir_spread_fetch = 3
@@ -343,18 +345,62 @@ int ed25519_public_blind(uint8_t *out,
       end
     end
     for i, dir in ipairs(valid) do
-      local dir_circuit = create_path(register_circuit(3 + i), moria1)
-      dir_circuit:extend(routers[dir.identity])
-      local dir_provider = require "blue.socket_wrapper"({connect = dir_circuit:provider().connect_dir})
-      local status, content = http_client.request("http://node/tor/hs/3/" .. require"blue.base64".encode(blinded_pubkey), nil, nil, dir_provider)
-      if status == 200 then
-        return content
+      local ok, data, data2 = pcall(function()
+        local dir_circuit = create_path(register_circuit(3 + i), moria1)
+        dir_circuit:extend(routers[dir.identity])
+        local dir_provider = require "blue.socket_wrapper"({connect = dir_circuit:provider().connect_dir})
+        local status, content = http_client.request("http://node/tor/hs/3/" .. require"blue.base64".encode(blinded_pubkey), nil, nil, dir_provider)
+        if status == 200 then
+          return content, {blinded_pubkey = blinded_pubkey, pubkey = addr_bin:sub(1, 32), credential = credential, subcredential = subcredential}
+        end
+        return nil
+      end)
+      if ok and data then
+        return data, data2
+      elseif not ok then
+        print(data)
       end
     end
     return nil, "error"
   end
-  local descriptor = assert(lookup_onion("aupfgzsrk52tj4bp7debhwvdfl5u4g6lsdxro5gxbemn4r3cazutqbad"))
-  dir.parse_hidden(descriptor)
+  local descriptor, creds = assert(lookup_onion("aupfgzsrk52tj4bp7debhwvdfl5u4g6lsdxro5gxbemn4r3cazutqbad"))
+  descriptor = dir.parse_hidden(descriptor)
+
+  local function crypt(SECRET_DATA, STRING_CONSTANT, data)
+    assert(type(SECRET_DATA) == "string")
+    assert(type(STRING_CONSTANT) == "string")
+    assert(type(data) == "string")
+    local encrypted = require"blue.base64".decode(data)
+    local salt
+    salt, encrypted = encrypted:sub(1, 16), encrypted:sub(17, -33)
+    local secret_input = SECRET_DATA .. creds.subcredential .. struct.pack(">L", tonumber(assert(descriptor["revision-counter"][1]).data))
+    local S_KEY_LEN = 32
+    local S_IV_LEN = 16
+    local MAC_KEY_LEN = 16 -- ?
+    local keys = require "blue.tor.shake3"(secret_input .. salt .. STRING_CONSTANT, S_KEY_LEN + S_IV_LEN + MAC_KEY_LEN)
+    assert(keys:len() == (S_KEY_LEN + S_IV_LEN + MAC_KEY_LEN))
+    local SECRET_KEY = keys:sub(1, S_KEY_LEN)
+    local SECRET_IV = keys:sub(1 + S_KEY_LEN, S_IV_LEN + S_KEY_LEN)
+    local MAC_KEY = keys:sub(S_IV_LEN + S_KEY_LEN + 1)
+    local aes_ctx = aes.decrypt(SECRET_KEY, SECRET_IV)
+    local ret = aes_ctx(encrypted)
+    aes_ctx = nil
+    return ret
+  end
+  local superdecrypted = crypt(creds.blinded_pubkey, "hsdir-superencrypted-data", descriptor["superencrypted"][1].block_data.data)
+  -- decode(superdecrypted)
+  local inner = dir.parse_hidden_inner(superdecrypted)
+  local cookie = ""
+  -- decode(inner)
+  local decrypted = crypt(creds.blinded_pubkey .. cookie, "hsdir-encrypted-data", inner["encrypted"][1].block_data.data)
+  print(decrypted)
+  local plain = dir.parse_hidden_plain(decrypted)
+  decode(plain)
+  local ip = plain.intoduction_points[1]
+  test_circuit:extend(ip.link_specifier)
+  test_circuit:introduce1(ip.auth_key)
+
+  print("DONE1")
 
   os.exit()
   local cnt = 0
