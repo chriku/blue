@@ -1,4 +1,4 @@
-local struct=require"blue.struct"
+local struct = require "blue.struct"
 local ed25519 = {}
 function ed25519.parse_cert(str)
   local version, type, exp, cert_key_type, certified_key, n_extensions = struct.unpack(">BBIBc32B", str)

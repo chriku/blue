@@ -213,6 +213,7 @@ function tor.create(args)
   until code == 200
 
   local test_circuit = create_path(register_circuit(1), moria1)
+  local test_circuit2 = create_path(register_circuit(10), moria1)
   -- Target: http://xb2grobibwfzs3whjdqs6djk2lns3mkusdxsgz5nknb3honbvxacjaid.onion/
   -- test_circuit:extend(require"blue.tests.tor_node_infos"["gabelmoo"])
   -- test_circuit:extend(require"blue.tests.tor_node_infos"["dannenberg"])
@@ -265,8 +266,10 @@ int ed25519_public_blind(uint8_t *out,
 ]]
   tor.init_logging(0)
 
+  print("CT", os.date(nil, consensus.valid_after))
+
   local function lookup_onion(addr)
-    local current = true
+    local current = os.time() > consensus.valid_after
     local addr_bin = base32.decode(addr)
     local mins = consensus.valid_after / 60
     local blk = math.floor(mins / 1440)
@@ -286,33 +289,17 @@ int ed25519_public_blind(uint8_t *out,
     local credential = sha3("credential" .. addr_bin:sub(1, 32))
     local subcredential = sha3("subcredential" .. credential .. blinded_pubkey)
     print(require"blue.base64".encode(blinded_pubkey))
-    local hsdir_n_replicas = 2
+    local hsdir_n_replicas = 2 + 2
     local hsdir_spread_fetch = 3
     local hsdir_spread_store = 4
     local repica_indices = {}
-    local search = {}
-    search[require"blue.hex".decode("8B 64 F5 93 CA C2 ED 05 C0 FA 70 3A EF 50 FF 71 92 5B 56 9C")] = true
-    search[require"blue.hex".decode("4F 9B E3 A5 49 73 0D 4B 57 05 E1 B8 9D 63 7C A8 24 A5 7D A1")] = true
-    search[require"blue.hex".decode("A4 CC 39 18 4A D2 87 D7 2C 22 47 73 88 35 81 1C 7A 7E CB 8E")] = true
-    search[require"blue.hex".decode("82 5A D5 D3 3B 2A 5C 41 BC 64 70 47 D6 B6 3A C4 1C 4C 50 21")] = true
-    search[require"blue.hex".decode("BF 73 5F 66 94 81 EE 1C CC 34 8F 07 31 55 1C 93 3D 1E 22 78")] = true
-    search[require"blue.hex".decode("FF 30 59 E7 7E 5D 22 F1 C3 B2 0C CB E1 25 69 1A D2 75 88 DD")] = true
     for _, dir in ipairs(consensus.hidden_service_dirs) do
       local router = routers[dir.identity]
       if router then
-        -- decode(router)
         dir.hsdir_index = sha3("node-idx" .. router.master_key_ed25519 .. (current and consensus.shared_current_value or consensus.shared_prev_value) .. struct.pack(">LL", blk, 1440))
-        if router.master_key_ed25519 == require"blue.hex".decode("0F 05 79 43 19 24 52 0E 9A 48 8A C2 1E 03 81 84 E0 27 4C DD 83 15 FA 70 6F 8C 07 1B 56 BB A4 4F") then
-          print(require"blue.hex".encode(dir.hsdir_index))
-        end
-        -- print(require"blue.hex".encode(dir.identity),require"blue.hex".encode(dir.hsdir_index))
       end
-      --[[for k, v in pairs(dir) do
-      end]]
-      -- assert(dir.identity~=require"blue.hex".decode("A4 CC 39 18 4A D2 87 D7 2C 22 47 73 88 35 81 1C 7A 7E CB 8E"))
     end
     print("All routers")
-    -- os.exit(0)
     local nl = {unpack(consensus.hidden_service_dirs)}
     local function cmp(a, b)
       if a and b then
@@ -327,43 +314,53 @@ int ed25519_public_blind(uint8_t *out,
     local ret = {}
     for replicanum = 1, hsdir_n_replicas do
       local index = sha3("store-at-idx" .. blinded_pubkey .. struct.pack(">LLL", replicanum, 1440, blk))
-      print("HS INDEX", require"blue.hex".encode(index))
       table.insert(nl, {is_mark = true, hsdir_index = index})
     end
     table.sort(nl, function(a, b)
       return cmp(a.hsdir_index, b.hsdir_index)
     end)
-    for i, node in ipairs(nl) do
-      if search[node.identity] then
-        print("SORTED", require"blue.hex".encode(node.identity), require"blue.hex".encode(node.hsdir_index))
-      end
-    end
     local valid = {}
     for i, node in ipairs(nl) do
       if node.is_mark then
         table.insert(valid, nl[((i + 1) % (#nl)) + 1])
       end
     end
+    if #valid == 0 then
+      return nil, "no valid dirs found"
+    end
+    local ret, ret2
     for i, dir in ipairs(valid) do
-      local ok, data, data2 = pcall(function()
-        local dir_circuit = create_path(register_circuit(3 + i), moria1)
-        dir_circuit:extend(routers[dir.identity])
-        local dir_provider = require "blue.socket_wrapper"({connect = dir_circuit:provider().connect_dir})
-        local status, content = http_client.request("http://node/tor/hs/3/" .. require"blue.base64".encode(blinded_pubkey), nil, nil, dir_provider)
-        if status == 200 then
-          return content, {blinded_pubkey = blinded_pubkey, pubkey = addr_bin:sub(1, 32), credential = credential, subcredential = subcredential}
+      scheduler.addthread(function()
+        local ok, data, data2 = pcall(function()
+          local dir_circuit = create_path(register_circuit(3 + i), moria1)
+          dir_circuit:extend(routers[dir.identity])
+          local dir_provider = require "blue.socket_wrapper"({connect = dir_circuit:provider().connect_dir})
+          local status, content = http_client.request("http://node/tor/hs/3/" .. require"blue.base64".encode(blinded_pubkey), nil, nil, dir_provider)
+          if status == 200 then
+            return content, {blinded_pubkey = blinded_pubkey, pubkey = addr_bin:sub(1, 32), credential = credential, subcredential = subcredential}
+          end
+          assert(status == 404)
+          return nil
+        end)
+        if ok and data then
+          ret, ret2 = data, data2
+        elseif not ok then
+          print(data)
+        else
+          print("no data here")
         end
-        return nil
       end)
-      if ok and data then
-        return data, data2
-      elseif not ok then
-        print(data)
+    end
+    for i = 1, 5000 do
+      scheduler.sleep(0.001)
+      if ret then
+        return ret, ret2
       end
     end
     return nil, "error"
   end
-  local descriptor, creds = assert(lookup_onion("aupfgzsrk52tj4bp7debhwvdfl5u4g6lsdxro5gxbemn4r3cazutqbad"))
+  -- local descriptor, creds = assert(lookup_onion("aupfgzsrk52tj4bp7debhwvdfl5u4g6lsdxro5gxbemn4r3cazutqbad"))
+  local descriptor, creds = assert(lookup_onion("5wxesr7reiqgk5l7rjchy66iqyssgwnd7oziip6uy3yz4hrtfs47cmqd"))
   descriptor = dir.parse_hidden(descriptor)
 
   local function crypt(SECRET_DATA, STRING_CONSTANT, data)
@@ -371,12 +368,12 @@ int ed25519_public_blind(uint8_t *out,
     assert(type(STRING_CONSTANT) == "string")
     assert(type(data) == "string")
     local encrypted = require"blue.base64".decode(data)
-    local salt
-    salt, encrypted = encrypted:sub(1, 16), encrypted:sub(17, -33)
+    local salt, mac
+    salt, encrypted, mac = encrypted:sub(1, 16), encrypted:sub(17, -33), encrypted:sub(-32, -1)
     local secret_input = SECRET_DATA .. creds.subcredential .. struct.pack(">L", tonumber(assert(descriptor["revision-counter"][1]).data))
     local S_KEY_LEN = 32
     local S_IV_LEN = 16
-    local MAC_KEY_LEN = 16 -- ?
+    local MAC_KEY_LEN = 32 -- ?
     local keys = require "blue.tor.shake3"(secret_input .. salt .. STRING_CONSTANT, S_KEY_LEN + S_IV_LEN + MAC_KEY_LEN)
     assert(keys:len() == (S_KEY_LEN + S_IV_LEN + MAC_KEY_LEN))
     local SECRET_KEY = keys:sub(1, S_KEY_LEN)
@@ -385,6 +382,8 @@ int ed25519_public_blind(uint8_t *out,
     local aes_ctx = aes.decrypt(SECRET_KEY, SECRET_IV)
     local ret = aes_ctx(encrypted)
     aes_ctx = nil
+
+    assert(sha3(struct.pack(">L", MAC_KEY_LEN) .. MAC_KEY .. struct.pack(">L", salt:len()) .. salt .. encrypted) == mac, "Bad MAC")
     return ret
   end
   local superdecrypted = crypt(creds.blinded_pubkey, "hsdir-superencrypted-data", descriptor["superencrypted"][1].block_data.data)
@@ -393,14 +392,44 @@ int ed25519_public_blind(uint8_t *out,
   local cookie = ""
   -- decode(inner)
   local decrypted = crypt(creds.blinded_pubkey .. cookie, "hsdir-encrypted-data", inner["encrypted"][1].block_data.data)
-  print(decrypted)
-  local plain = dir.parse_hidden_plain(decrypted)
-  decode(plain)
-  local ip = plain.intoduction_points[1]
-  test_circuit:extend(ip.link_specifier)
-  test_circuit:introduce1(ip.auth_key)
+  local cookie = {}
+  for i = 1, 20 do
+    cookie[i] = string.char(math.random(0, 255))
+  end
+  cookie = table.concat(cookie)
 
-  print("DONE1")
+  local rdp = routers["gabelmoo"]
+
+  print("SENDING RENDEZVOUS")
+  test_circuit2:extend(rdp)
+  print("EXTENDING RENDEZVOUS")
+  test_circuit2:rendezvous(cookie)
+  print("SENT RENDEZVOUS")
+
+  local plain = dir.parse_hidden_plain(decrypted)
+  local ip = plain.intoduction_points[math.random(1, #plain.intoduction_points)]
+  print("CONNECTING TO INTROPOINT")
+  test_circuit:extend(ip.link_specifier)
+  print("CONNECTED TO INTROPOINT")
+
+  print("SENDING INTRO")
+  local idata = test_circuit:introduce1(ip, creds, rdp, cookie)
+  print("SENT INTRO")
+
+  test_circuit2:rendezvous2(idata)
+  --test_circuit2:sendme()
+  local test_provider = test_circuit2:provider() -- require "blue.socket_wrapper"({connect = .connect})
+  print("STARTING REQUEST")
+  print(http_client.request("http://(rendezvous):8080/README", nil, nil, {
+    connect = function()
+      local skt = test_provider.connect("(rendezvous)", 8080)
+      --skt:sendme()
+      for i = 1, 5 do
+        --skt:sendme()
+      end
+      return skt
+    end
+  }))
 
   os.exit()
   local cnt = 0
@@ -418,8 +447,8 @@ int ed25519_public_blind(uint8_t *out,
       cnt = cnt + 1
       -- print("REQ",dir.ip,dir.dirport)
       local e, m = pcall(function()
-        local dir_provider = require "blue.socket_wrapper"({connect = dir_circuit:provider().connect_dir})
         local dir_circuit = create_path(register_circuit(3 + i), moria1)
+        local dir_provider = require "blue.socket_wrapper"({connect = dir_circuit:provider().connect_dir})
         local status, content = http_client.request("http://" .. dir.ip .. ":" .. dir.dirport .. "/tor/rendezvous/3g2upl4pq6kufc4m", nil, nil, dir_provider)
         if status and status < 300 then
           decode(dir)

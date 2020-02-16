@@ -145,9 +145,10 @@ function dir.parse_hidden_plain(doc)
         local key = d.data:match("^ntor (.*)$")
         intp.link_specifier.ntor_onion_key = require"blue.base64".decode(key)
       elseif key == "auth-key" then
-        intp.auth_key=require"blue.tor.ed25519".parse_cert(require"blue.base64".decode(d.block_data.data))
+        intp.auth_key = require"blue.tor.ed25519".parse_cert(require"blue.base64".decode(d.block_data.data))
       elseif key == "enc-key" then
-        intp.enc_key = require"blue.base64".decode(d.data)
+        local key = d.data:match("^ntor (.*)$")
+        intp.enc_key = require"blue.base64".decode(key)
       elseif key == "enc-key-cert" then
         intp.enc_key_cert = require"blue.base64".decode(d.block_data.data)
       else
