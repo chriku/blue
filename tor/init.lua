@@ -347,13 +347,13 @@ int ed25519_public_blind(uint8_t *out,
       dir_circuit:extend(routers[dir.identity])
       local dir_provider = require "blue.socket_wrapper"({connect = dir_circuit:provider().connect_dir})
       local status, content = http_client.request("http://node/tor/hs/3/" .. require"blue.base64".encode(blinded_pubkey), nil, nil, dir_provider)
-      if status==200 then
+      if status == 200 then
         return content
       end
     end
-    return nil,"error"
+    return nil, "error"
   end
-  local descriptor=assert(lookup_onion("aupfgzsrk52tj4bp7debhwvdfl5u4g6lsdxro5gxbemn4r3cazutqbad"))
+  local descriptor = assert(lookup_onion("aupfgzsrk52tj4bp7debhwvdfl5u4g6lsdxro5gxbemn4r3cazutqbad"))
   dir.parse_hidden(descriptor)
 
   os.exit()
