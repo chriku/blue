@@ -1,24 +1,5 @@
-local ffi = require "ffi"
 local sha1 = require "blue.sha1"
-ffi.cdef [[
-typedef struct X509 {} X509;
-typedef struct EVP_PKEY {} EVP_PKEY;
-typedef struct EVP_PKEY_CTX {} EVP_PKEY_CTX;
-typedef struct ENGINE {} ENGINE;
-typedef struct RSA {} RSA;
-
-int i2d_RSAPublicKey(RSA *a, unsigned char **pp);
-RSA *EVP_PKEY_get1_RSA(EVP_PKEY *pkey);
-X509 *d2i_X509(X509 **a, unsigned char **ppin, long length);
-void X509_free(X509 *a);
-EVP_PKEY *X509_get_pubkey(X509 *x);
-void EVP_PKEY_free(EVP_PKEY *key);
-EVP_PKEY_CTX *EVP_PKEY_CTX_new(EVP_PKEY *pkey, ENGINE *e);
-void EVP_PKEY_CTX_free(EVP_PKEY_CTX *ctx);
-int EVP_PKEY_verify_recover_init(EVP_PKEY_CTX *ctx);
-int EVP_PKEY_verify_recover(EVP_PKEY_CTX *ctx,unsigned char *rout, size_t *routlen,const unsigned char *sig, size_t siglen);
-int EVP_PKEY_get_raw_public_key(const EVP_PKEY *pkey, unsigned char *pub,size_t *len);]]
-local lib = ffi.load("/usr/lib/x86_64-linux-gnu/libcrypto.so.1.1")
+local lib = require "blue.tor.openssl"
 local rsa = {}
 ffi.metatype("struct X509", {
   __index = {

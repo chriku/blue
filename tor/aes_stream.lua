@@ -1,27 +1,4 @@
-local ffi = require "ffi"
-ffi.cdef [[
-void *malloc(size_t size);
-void free(void *ptr);
-typedef struct EVP_CIPHER {} EVP_CIPHER;
-typedef struct EVP_CIPHER_CTX {} EVP_CIPHER_CTX;
-const EVP_CIPHER *EVP_aes_128_ctr(void);
-const EVP_CIPHER *EVP_aes_256_ctr(void);
- EVP_CIPHER_CTX *EVP_CIPHER_CTX_new(void);
- void EVP_CIPHER_CTX_free(EVP_CIPHER_CTX *ctx);
- int EVP_CIPHER_CTX_reset(EVP_CIPHER_CTX *c);
- int EVP_EncryptInit_ex(EVP_CIPHER_CTX *ctx, const EVP_CIPHER *type,
-                        ENGINE *impl, const unsigned char *key, const unsigned char *iv);
- int EVP_EncryptUpdate(EVP_CIPHER_CTX *ctx, unsigned char *out,
-                       int *outl, const unsigned char *in, int inl);
- int EVP_EncryptFinal_ex(EVP_CIPHER_CTX *ctx, unsigned char *out, int *outl);
- int EVP_DecryptInit_ex(EVP_CIPHER_CTX *ctx, const EVP_CIPHER *type,
-                        ENGINE *impl, const unsigned char *key, const unsigned char *iv);
- int EVP_DecryptUpdate(EVP_CIPHER_CTX *ctx, unsigned char *out,
-                       int *outl, const unsigned char *in, int inl);
- int EVP_DecryptFinal_ex(EVP_CIPHER_CTX *ctx, unsigned char *out, int *outl);
-int EVP_CIPHER_CTX_set_padding(EVP_CIPHER_CTX *x, int padding);
-]]
-local lib = ffi.load("/usr/lib/x86_64-linux-gnu/libcrypto.so.1.1")
+local lib = require "blue.tor.openssl"
 local aes = {}
 function aes.encrypt(key_in, iv_in)
   assert(key_in)

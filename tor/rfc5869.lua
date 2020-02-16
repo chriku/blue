@@ -1,16 +1,4 @@
-local ffi = require "ffi"
-ffi.cdef [[
-//typedef struct EVP_PKEY_CTX {} EVP_PKEY_CTX;
-//typedef struct EVP_MD {} EVP_MD;
-EVP_PKEY_CTX *EVP_PKEY_CTX_new_id(int id, ENGINE *e);
-void EVP_PKEY_CTX_free(EVP_PKEY_CTX *ctx);
-int EVP_PKEY_derive_init(EVP_PKEY_CTX *ctx);
-int EVP_PKEY_CTX_ctrl(EVP_PKEY_CTX *ctx, int keytype, int optype,
-                              int cmd, int p1, void *p2);
-const EVP_MD *EVP_sha256(void);
-int EVP_PKEY_derive(EVP_PKEY_CTX *ctx, unsigned char *key, size_t *keylen);
-]]
-local lib = ffi.load("/usr/lib/x86_64-linux-gnu/libcrypto.so.1.1")
+local lib = require "blue.tor.openssl"
 
 return function(key, salt, info)
   -- key,salt,info=key,salt,info

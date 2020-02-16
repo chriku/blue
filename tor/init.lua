@@ -1,9 +1,4 @@
 local tor = {}
-local PAYLOAD_LEN = 509
-local PK_PAD_LEN = 42
-local PK_ENC_LEN = 128
-local HASH_LEN = 20
-local ID_LENGTH = 20
 local ssl = require "blue.ssl"
 local struct = require "blue.struct"
 local curve = require "blue.tor.curve"
@@ -13,38 +8,13 @@ local aes = require "blue.tor.aes_stream"
 local ed25519 = require "blue.tor.ed25519"
 local util = require "blue.util"
 local scheduler = require "blue.scheduler"
-local create_path = require "blue.tor.path"
 local matrix = require "blue.matrix.init"
 local http_client = require "blue.http_client"
 local base32 = require "blue.base32"
 local dir = require "blue.tor.dir"
 local sha3 = require "blue.tor.sha3"
-local tor_cmds = {}
-do
-  local function add_cmd(id, name)
-    local cmd = {id = id, name = name}
-    tor_cmds[id] = cmd
-    tor_cmds[name] = cmd
-  end
-  add_cmd(0, "padding")
-  add_cmd(1, "create")
-  add_cmd(2, "created")
-  add_cmd(3, "relay")
-  add_cmd(4, "destroy")
-  add_cmd(5, "create_fast")
-  add_cmd(6, "created_fast")
-  add_cmd(8, "netinfo")
-  add_cmd(9, "relay_early")
-  add_cmd(10, "create2")
-  add_cmd(11, "created2")
-  add_cmd(12, "padding_negotiate")
-  add_cmd(7, "versions")
-  add_cmd(128, "vpadding")
-  add_cmd(129, "certs")
-  add_cmd(130, "auth_challenge")
-  add_cmd(131, "authenticate")
-  add_cmd(132, "authorize")
-end
+local circ = require "blue.tor.circuit"
+local param = require "blue.tor.param"
 function tor.create(args)
   assert(args.first_relay)
   assert(args.first_relay.ip)
@@ -52,65 +22,7 @@ function tor.create(args)
   assert(args.first_relay.port)
   local socket_provider = ssl.create(args.socket_provider)
   print("CONN TO", args.first_relay.ip, args.first_relay.port)
-  local conn = socket_provider.connect(args.first_relay.ip, args.first_relay.port)
-
-  local socket_mutex = util.mutex()
-  local recv_buf = ""
-  local circ_id_len = "H"
-
-  local circuits = {}
-  local function register_circuit(id)
-    local circuit = {}
-    local buffer = {}
-    local cb
-    circuits[id] = function(cmd, data)
-      local rcb = cb
-      cb = nil
-      table.insert(buffer, {cmd = cmd, data = data})
-      if rcb then
-        scheduler.addthread(function()
-          scheduler.sleep(0)
-          rcb()
-        end)
-      end
-    end
-    function circuit:read_cell()
-      while #buffer == 0 do
-        assert(not cb, "Attempt to multithread on single circuit")
-        cb = scheduler.getresume()
-        scheduler.yield()
-      end
-      local item = table.remove(buffer, 1)
-      return tor_cmds[item.cmd].name, item.data
-    end
-    function circuit:send_raw_cell(cmd, data)
-      socket_mutex:lock()
-      -- print("Send Cell", tor_cmds[cmd].name)
-      local sd = struct.pack(">" .. circ_id_len .. "B", id, cmd) .. data
-      assert(conn:send(sd))
-      socket_mutex:unlock()
-    end
-    function circuit:send_cell(cmd, data)
-      assert(cmd ~= "versions")
-      local cmd_id = assert(tor_cmds[cmd]).id
-      if cmd_id >= 128 then
-        data = struct.pack(">H", data:len()) .. data
-      else
-        data = data .. string.rep(string.char(0), PAYLOAD_LEN - data:len())
-      end
-      circuit:send_raw_cell(cmd_id, data)
-    end
-    function circuit:erase()
-      circuits[id] = nil
-    end
-    return circuit
-  end
-
-  local function ensure_buf(len)
-    while recv_buf:len() < len do
-      recv_buf = recv_buf .. assert(conn:receive())
-    end
-  end
+  local circuit = circ(socket_provider.connect(args.first_relay.ip, args.first_relay.port))
 
   local function read_version_cell(cmd, data)
     assert(cmd == "versions")
@@ -162,31 +74,7 @@ function tor.create(args)
     end
   end
 
-  scheduler.addthread(function()
-    scheduler.sleep(0.001)
-    while next(circuits) do
-      ensure_buf(3)
-      local CircID, cmd = struct.unpack(">" .. circ_id_len .. "B", recv_buf)
-      local len = PAYLOAD_LEN
-      local start = 4
-      if cmd == 7 or cmd >= 128 then
-        ensure_buf(5)
-        len = struct.unpack(">H", recv_buf:sub(start))
-        start = 6
-      end
-      ensure_buf(start + len - 1)
-      local data = recv_buf:sub(start, start + len - 1)
-      recv_buf = recv_buf:sub(start + len)
-      -- print("Receive Cell", tor_cmds[cmd].name)
-      if circuits[CircID] then
-        circuits[CircID](cmd, data)
-      else
-        print("Package for unregistered circuit", CircID, cmd)
-      end
-    end
-  end)
-
-  local control = register_circuit(0)
+  local control = circuit.control
 
   control:send_raw_cell(7, struct.pack(">HH", 2, 3))
 
@@ -211,13 +99,13 @@ function tor.create(args)
     -- print(code, moria1)
   until code == 200
 
-  local test_circuit = create_path(register_circuit(1), moria1)
-  local test_circuit2 = create_path(register_circuit(10), moria1)
+  local test_circuit = circuit.create_path()
+  local test_circuit2 = circuit.create_path()
   -- Target: http://xb2grobibwfzs3whjdqs6djk2lns3mkusdxsgz5nknb3honbvxacjaid.onion/
   -- test_circuit:extend(require"blue.tests.tor_node_infos"["gabelmoo"])
   -- test_circuit:extend(require"blue.tests.tor_node_infos"["dannenberg"])
   -- test_circuit:extend(require"blue.tests.tor_node_infos"["ExitNinja"])
-  local dir_circuit = create_path(register_circuit(2), moria1)
+  local dir_circuit = circuit.create_path()
   -- dir_circuit:extend(require"blue.tests.tor_node_infos"["gabelmoo"])
   -- dir_circuit:extend(require"blue.tests.tor_node_infos"["dannenberg"])
   -- dir_circuit:extend(require"blue.tests.tor_node_infos"["BexleyRecipes"])
@@ -260,7 +148,6 @@ function tor.create(args)
     local nonce = "key-blind" .. struct.pack(">LL", blk, 1440)
     local basepoint = "(15112221349535400772501151409588531511454012693041857206046113283949847762202, 46316835694926478169428394003475163141307993866256225615783033603165251855960)"
     local h = sha3("Derive temporary signing key\0" .. addr_bin:sub(1, 32) .. basepoint .. nonce)
-    local pubkey = ffi.new("char[32]", key)
     local blinded_pubkey = require"blue.tor.key_blinding".blind_public_key(addr_bin:sub(1, 32), h)
     local credential = sha3("credential" .. addr_bin:sub(1, 32))
     local subcredential = sha3("subcredential" .. credential .. blinded_pubkey)
@@ -317,7 +204,7 @@ function tor.create(args)
     for i, dir in ipairs(valid) do
       scheduler.addthread(function()
         local ok, data, data2 = pcall(function()
-          local dir_circuit = create_path(register_circuit(3 + i), moria1)
+          local dir_circuit = circuit.create_path()
           dir_circuit:extend(routers[dir.identity])
           local dir_provider = require "blue.socket_wrapper"({connect = dir_circuit:provider().connect_dir})
           local status, content = http_client.request("http://node/tor/hs/3/" .. require"blue.base64".encode(blinded_pubkey), nil, nil, dir_provider)
@@ -372,11 +259,9 @@ function tor.create(args)
     return ret
   end
   local superdecrypted = crypt(creds.blinded_pubkey, "hsdir-superencrypted-data", descriptor["superencrypted"][1].block_data.data)
-  -- decode(superdecrypted)
   local inner = dir.parse_hidden_inner(superdecrypted)
-  local cookie = ""
-  -- decode(inner)
-  local decrypted = crypt(creds.blinded_pubkey .. cookie, "hsdir-encrypted-data", inner["encrypted"][1].block_data.data)
+  local authorization_cookie = ""
+  local decrypted = crypt(creds.blinded_pubkey .. authorization_cookie, "hsdir-encrypted-data", inner["encrypted"][1].block_data.data)
   local cookie = {}
   for i = 1, 20 do
     cookie[i] = string.char(math.random(0, 255))
@@ -395,8 +280,7 @@ function tor.create(args)
   local idata = test_circuit:introduce1(ip, creds, rdp, cookie)
 
   test_circuit2:rendezvous2(idata)
-  -- test_circuit2:sendme()
-  local test_provider = test_circuit2:provider() -- require "blue.socket_wrapper"({connect = .connect})
+  local test_provider = test_circuit2:provider()
   print("STARTING REQUEST")
   print(http_client.request("http://(rendezvous)/", nil, nil, test_provider))
 

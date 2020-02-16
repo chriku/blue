@@ -1,14 +1,4 @@
-local ffi = require "ffi"
-ffi.cdef [[
-typedef struct EVP_MD_CTX {} EVP_MD_CTX;
-EVP_MD_CTX *EVP_MD_CTX_new(void);
-void EVP_MD_CTX_free(EVP_MD_CTX *ctx);
-int EVP_DigestInit_ex(EVP_MD_CTX *ctx, const EVP_MD *type, ENGINE *impl);
-int EVP_DigestUpdate(EVP_MD_CTX *ctx, const void *d, size_t cnt);
-int EVP_DigestFinal_ex(EVP_MD_CTX *ctx, unsigned char *md, unsigned int *s);
-int EVP_MD_CTX_copy_ex(EVP_MD_CTX *out, const EVP_MD_CTX *in);
-]]
-local lib = ffi.load("/usr/lib/x86_64-linux-gnu/libcrypto.so.1.1")
+local lib = require "blue.tor.openssl"
 return function(algo)
   return function()
     local ctx = ffi.gc(lib.EVP_MD_CTX_new(), lib.EVP_MD_CTX_free)
