@@ -6,10 +6,10 @@ int crypto_scalarmult_ed25519_noclamp(unsigned char *q, const unsigned char *n,
                                       const unsigned char *p);
 ]]
 local lib = ffi.load("/usr/lib/x86_64-linux-gnu/libsodium.so.23")
-return function(inp,param)
-  local out=ffi.new("unsigned char[32]")
-  assert(lib.crypto_scalarmult_ed25519(out,inp,param)==0)
-  return ffi.string(out,32)
+return function(inp, param)
+  local out = ffi.new("unsigned char[32]")
+  assert(lib.crypto_scalarmult_ed25519(out, inp, param) == 0)
+  return ffi.string(out, 32)
 end
 --[==[
 

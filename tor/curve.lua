@@ -44,7 +44,7 @@ function curve.handshake(skey, pkey)
 end
 function curve.pad(skey, pkey)
   -- print(skey:len(), pkey:len())
-pkey=string.char(bit.bxor(string.byte(pkey:sub(1,1)),128))..pkey:sub(2)
+  pkey = string.char(bit.bxor(string.byte(pkey:sub(1, 1)), 128)) .. pkey:sub(2)
   assert(skey:len() == 32)
   assert(pkey:len() == 32)
   return impl(skey, pkey)

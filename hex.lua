@@ -1,5 +1,8 @@
 local hex = {}
 function hex.encode(a)
+  if not a then
+    error("Invalid tohex string", 2)
+  end
   return (a:gsub(".", function(a)
     return string.format("%02X ", string.byte(a))
   end):sub(1, -2))

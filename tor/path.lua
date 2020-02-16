@@ -57,7 +57,7 @@ return function(circuit, first_node_info)
   end
   function path:extend(node_info)
     math.randomseed(os.time() * math.random())
-    local new_node = {router = dir.parse_to_router(node_info)}
+    local new_node = {router = type(node_info) == "string" and dir.parse_to_router(node_info) or node_info}
     local ip1, ip2, ip3, ip4 = assert(new_node.router.address):match("^([0-9]+)%.([0-9]+)%.([0-9]+)%.([0-9]+)$")
     ip1 = assert(tonumber(ip1))
     ip2 = assert(tonumber(ip2))
