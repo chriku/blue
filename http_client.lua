@@ -1,8 +1,9 @@
 local scheduler = require "blue.scheduler"
+local copas=require"copas"
 local http = {}
 function http.request(url, data, req, socket_provider)
   req = req or {}
-  local socket = socket_provider or require "blue.bsocket"
+  local socket = require"copas" --socket_provider or require "blue.bsocket"
   local proto, host, port, page = url:match("^http(s*)://([^/:]*):*([^/:]*)(.-)$")
   if page == "" then
     page = "/"
@@ -14,9 +15,16 @@ function http.request(url, data, req, socket_provider)
   local secure = proto == "s"
   local conn
   if secure then
-    socket = require"blue.ssl".create(socket_provider)
+    --socket = require"blue.ssl".create(socket_provider)
   end
-  conn = assert(socket.connect(host, tonumber(port .. "") or (secure and 443 or 80)))
+  local conn=copas.wrap(require"socket".tcp())
+  assert(conn:connect(host, tonumber(port .. "") or (secure and 443 or 80)))
+  conn:dohandshake{
+  mode = "client",
+  protocol = "tlsv1",
+  verify = "none",
+  options = "all",
+}
   local npage = page
   local method = "GET"
   if data then
@@ -26,8 +34,9 @@ function http.request(url, data, req, socket_provider)
 print(method .. " " .. npage .. " HTTP/1.1")
   conn:send(method .. " " .. npage .. " HTTP/1.1\r\n")
   req["connection"] = "close"
-  req["connection"] = "keep-alive"
+  --req["connection"] = "keep-alive"
   req["host"] = host
+req["user-agent"]="nie-game/updater blue"
   for k, v in pairs(req) do
     if k:find("^[a-zA-Z]") then
       conn:send(k .. ": " .. v .. "\r\n")
@@ -38,7 +47,7 @@ print(method .. " " .. npage .. " HTTP/1.1")
   local buf = ""
   local function getline()
     while not buf:find("\r\n") do
-      local cd, err = conn:receive_timeout(60)
+      local cd, err = conn:receive(1)
       if cd then
         buf = buf .. cd
       else
@@ -91,7 +100,7 @@ print(method .. " " .. npage .. " HTTP/1.1")
         c = c .. buf:sub(1, 1)
         buf = buf:sub(2)
         if buf:len() == 0 then
-          buf = assert(conn:receive())
+          buf = assert(conn:receive(1))
         end
       end
       getline()

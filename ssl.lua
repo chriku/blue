@@ -202,15 +202,15 @@ function ssl.create(socket_provider)
         if len > 0 then
           rblc = 0
           return ffi.string(buf, len)
-        elseif rec_buf:len() > 0 then
+        elseif rec_buf:len() > 0 and lib.SSL_get_error(ssl,len)~=5 then
           rblc = rblc + 1
-          if rblc > 100 then
+          if rblc > 8192 then
             error("Buffer not shrinking", 2)
           end
-          -- print("RBL",rec_buf:len())
+          print("RBL",rec_buf:len())
         else
           rblc = 0
-          -- print(open,len,ffi.string(lib.SSL_state_string_long(ssl)),lib.SSL_has_pending(ssl),rec_buf:len(),"LAST")
+          print(open,len,ffi.string(lib.SSL_state_string_long(ssl)),lib.SSL_has_pending(ssl),rec_buf:len(),"LAST")
           if not open then
             break
           end
