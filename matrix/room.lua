@@ -21,4 +21,7 @@ return function(meta, room_handle, handle, conn)
   function meta.index:send_message(msg)
     meta.send_message_event("m.room.message", msg)
   end
+  function meta.index:send_state_event(type, key, content)
+    meta.send_state_event(type, key, content)
+  end
 end

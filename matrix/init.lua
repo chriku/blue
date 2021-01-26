@@ -137,6 +137,12 @@ function matrix.connect(host, user, pass)
         until not msg.retry_after_ms
         return false
       end
+      function M.send_state_event(type, state_key, content)
+        local code, msg = conn.request.get("/_matrix/client/r0/rooms/" .. util.urlencode(id) .. "/state/" .. util.urlencode(type) .. "/" .. util.urlencode(state_key), content, {[":method"] = "PUT"})
+print(code)
+decode(msg)
+        return false
+      end
       setmetatable(room_handle, M)
       local done = {}
       function M.push_event(event)

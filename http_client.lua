@@ -23,6 +23,7 @@ function http.request(url, data, req, socket_provider)
     method = req[":method"] or "POST"
     req["content-length"] = data:len()
   end
+print(method .. " " .. npage .. " HTTP/1.1")
   conn:send(method .. " " .. npage .. " HTTP/1.1\r\n")
   req["connection"] = "close"
   req["connection"] = "keep-alive"
